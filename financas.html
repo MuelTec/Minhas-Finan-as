@@ -313,8 +313,9 @@ render();
 // Captura automática: verifica notificações pendentes periodicamente
 setInterval(pullNotifs,5000);
 setTimeout(pullNotifs,2500);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)pullNotifs()});
-window.addEventListener('focus',pullNotifs);
+function onBack(){if(!window.AndroidBridge)return;pullNotifs();if($('#ov').hidden)render()}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack()});
+window.addEventListener('focus',onBack);
 </script>
 </body>
 </html>

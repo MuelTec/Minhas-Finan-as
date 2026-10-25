@@ -161,6 +161,14 @@ const path = require('path');
   await page.evaluate(() => { window.AndroidBridge.isListenerEnabled = () => false; tab = 'tx'; render(); });
   const st2 = await page.evaluate(() => notifStatus());
   check('Botão "Ativar captura" quando desativado', st2.includes('Ativar captura automática'));
+  // Volta das configurações do Android com o interruptor ligado → status atualiza sozinho
+  await page.evaluate(() => {
+    window.AndroidBridge.isListenerEnabled = () => true;
+    window.dispatchEvent(new Event('focus'));
+  });
+  const autoRefresh = await page.evaluate(() =>
+    document.body.innerText.includes('Captura automática ativa'));
+  check('Status atualiza sozinho ao voltar das configurações', autoRefresh);
   // Sem bridge (navegador/iOS) → sem status, sem erro
   await page.evaluate(() => { delete window.AndroidBridge; tab = 'tx'; render(); });
   const st3 = await page.evaluate(() => notifStatus());
