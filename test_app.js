@@ -118,6 +118,55 @@ const path = require('path');
   const manual = await page.evaluate(() => S.tx.length);
   check('Lançamento manual salvo (total=2)', manual === 2, 'total=' + manual);
 
+  // 6. Captura automática com AndroidBridge simulado
+  console.log('\n[6] Captura automática (AndroidBridge simulado)');
+  await page.evaluate(() => {
+    window.AndroidBridge = {
+      _q: [{ text: 'Compra aprovada no cartão final 9999 - R$ 77,00 - Padaria Central' }],
+      takeQueue() { const q = this._q; this._q = []; return JSON.stringify(q); },
+      isListenerEnabled() { return true },
+      openNotificationSettings() { window.__settingsOpened = true }
+    };
+    tab = 'tx'; render();
+  });
+  const st1 = await page.evaluate(() => notifStatus());
+  check('Status "captura ativa"', st1.includes('Captura automática ativa'), st1.slice(0, 60));
+  await page.evaluate(() => pullNotifs());
+  await page.waitForFunction(() => document.querySelector('#f_a'), { timeout: 3000 });
+  const auto = await page.evaluate(() => ({
+    amt: document.querySelector('#f_a').value,
+    name: document.querySelector('#f_n').value
+  }));
+  check('Auto-preenchido com 77,00', auto.amt === '77', 'amt=' + auto.amt);
+  check('Nome Padaria extraído', /Padaria/i.test(auto.name), auto.name);
+  check('Mensagem "automático" visível', await page.evaluate(() => document.querySelector('#er').textContent.includes('automaticamente')));
+  // Notificação chega com sheet aberto → enfileira
+  await page.evaluate(() => {
+    window.AndroidBridge._q = [{ text: 'PIX recebido de Pedro - R$ 10,00' }];
+    pullNotifs();
+  });
+  const pend = await page.evaluate(() => pendingAuto.length);
+  check('Enfileirou 1 pendente', pend === 1, 'pend=' + pend);
+  // Salvar o atual → o pendente abre sozinho
+  await page.click('#bs');
+  await page.waitForFunction(() => document.querySelector('#f_a') && document.querySelector('#f_a').value === '10', { timeout: 3000 });
+  check('Próximo abriu automaticamente (R$ 10,00)', true);
+  await page.click('#bc'); // cancela
+  await page.waitForFunction(() => document.querySelector('#ov').hidden, { timeout: 3000 });
+  const pend2 = await page.evaluate(() => pendingAuto.length);
+  check('Pendente consumido', pend2 === 0, 'pend=' + pend2);
+  const txCount = await page.evaluate(() => S.tx.length);
+  check('Transação automática salva (total=3)', txCount === 3, 'total=' + txCount);
+  // Listener desativado → botão de ativar
+  await page.evaluate(() => { window.AndroidBridge.isListenerEnabled = () => false; tab = 'tx'; render(); });
+  const st2 = await page.evaluate(() => notifStatus());
+  check('Botão "Ativar captura" quando desativado', st2.includes('Ativar captura automática'));
+  // Sem bridge (navegador/iOS) → sem status, sem erro
+  await page.evaluate(() => { delete window.AndroidBridge; tab = 'tx'; render(); });
+  const st3 = await page.evaluate(() => notifStatus());
+  check('Sem bridge → sem status', st3 === '');
+  check('Sem erros JS após captura', errors.length === 0, errors.join(' | '));
+
   console.log('\n=============================');
   console.log('Resultado: ' + pass + ' passaram, ' + fail + ' falharam');
   if (errors.length) console.log('Erros JS:\n' + errors.join('\n'));

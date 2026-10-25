@@ -114,7 +114,7 @@ function invoice(i,cid){const it=[];let t=0;S.buys.filter(b=>b.cid==cid).forEach
 const monthTx=()=>S.tx.filter(x=>ix(x.date)==cur).sort((a,b)=>b.date.localeCompare(a.date));
 const sum=(l,t)=>l.filter(x=>x.type==t).reduce((s,x)=>s+x.amt,0);
 
-function close(){$('#ov').hidden=true;save();render()}
+function close(){$('#ov').hidden=true;save();render();if(pendingAuto.length)setTimeout(()=>openAuto(pendingAuto.shift()),0)}
 function sheet(title,body,onSave,onDel){
  $('#sh').innerHTML=`<h2>${title}</h2>${body}<div id="er"></div><div class="ac">${onDel?'<button class="b d" id="bd">Excluir</button>':''}<button class="b" id="bc">Cancelar</button><button class="b p" id="bs">Salvar</button></div>`;
  $('#ov').hidden=false;$('#bc').onclick=close;
@@ -188,6 +188,28 @@ async function importNotif(){
  const p=parseNotif(t);
  if(p)txSheet(null,p);else notifSheet(t);
 }
+// --- Captura automática (NotificationListener nativo no Android) ---
+let pendingAuto=[];
+function openAuto(p){txSheet(null,p);const er=$('#er');if(er)er.textContent='Preenchido automaticamente pela notificação. Revise e salve.'}
+function notifArrive(list){
+ const parsed=list.map(x=>parseNotif(x&&x.text?x.text:'')).filter(Boolean);
+ if(!parsed.length)return;
+ if(!$('#ov').hidden){pendingAuto=pendingAuto.concat(parsed);return}
+ openAuto(parsed.shift());if(parsed.length)pendingAuto=pendingAuto.concat(parsed);
+}
+function pullNotifs(){
+ if(!window.AndroidBridge)return;
+ try{const raw=window.AndroidBridge.takeQueue();if(!raw)return;
+  const list=JSON.parse(raw);
+  if(Array.isArray(list)&&list.length)notifArrive(list);
+ }catch(e){}
+}
+function notifStatus(){
+ if(!window.AndroidBridge)return'';
+ let on=false;try{on=window.AndroidBridge.isListenerEnabled()}catch(e){}
+ if(!on)return`<button class="b w" style="margin-top:8px" onclick="AndroidBridge.openNotificationSettings()">🔔 Ativar captura automática</button><div class="mu" style="font-size:12px">Abre as configurações do Android — ative “Minhas Finanças” na lista de acesso a notificações.</div>`;
+ return`<div class="mu" style="font-size:12px;margin-top:10px;text-align:center">✅ Captura automática ativa: notificações de banco são importadas sozinhas.</div>`;
+}
 function buyPrev(){
  const d=v('f_d'),n=Math.max(1,Math.min(48,parseInt(v('f_p'))||1));if(!d){$('#pv').textContent='';return}
  const b={date:d,n,cid:v('f_k')},f=first(b),l=f+n-1;
@@ -254,7 +276,7 @@ function home(){
 }
 function txTab(){
  const l=monthTx();
- return mbar()+`<button class="b p w" onclick="txSheet()">Novo lançamento</button><button class="b w" style="margin-top:8px" onclick="importNotif()">📲 Importar notificação de banco</button><div class="cd" style="margin-top:12px">${l.length?l.map(x=>`<div class="r" onclick="txSheet(${x.id})"><div class="t"><div>${esc(x.name)}</div><div class="mu">${x.cat} · ${fd(new Date(x.date+'T12:00'))}</div></div><div class="v ${x.type}">${x.type=='in'?'+':'−'} ${BRL.format(x.amt)}</div></div>`).join(''):'<div class="em">Sem lançamentos neste mês. Toque em “Novo lançamento”.</div>'}</div>`;
+ return mbar()+`<button class="b p w" onclick="txSheet()">Novo lançamento</button><button class="b w" style="margin-top:8px" onclick="importNotif()">📲 Importar notificação de banco</button>${notifStatus()}<div class="cd" style="margin-top:12px">${l.length?l.map(x=>`<div class="r" onclick="txSheet(${x.id})"><div class="t"><div>${esc(x.name)}</div><div class="mu">${x.cat} · ${fd(new Date(x.date+'T12:00'))}</div></div><div class="v ${x.type}">${x.type=='in'?'+':'−'} ${BRL.format(x.amt)}</div></div>`).join(''):'<div class="em">Sem lançamentos neste mês. Toque em “Novo lançamento”.</div>'}</div>`;
 }
 function cardTab(){
  const c=cardOf(cc);if(!c)return mbar()+'<h1>Cartões</h1><div class="cd"><div class="em">Escolha entre Neon, PicPay e Mercado Pago para começar.</div></div><button class="b p w" onclick="cardSheet()">Adicionar cartão</button>';const inv=invoice(cur,c.id),run=S.buys.filter(b=>b.cid==c.id&&b.n>1&&first(b)+b.n-1>=cur).sort((a,b)=>(first(a)+a.n)-(first(b)+b.n));
@@ -288,6 +310,11 @@ function render(){
  $('#nav').innerHTML=[['home','Resumo'],['tx','Lançamentos'],['hist','Histórico'],['card','Cartão'],['ag','Agenda']].map(([k,t])=>`<button class="${tab==k?'on':''}" onclick="tab='${k}';render();scrollTo(0,0)">${t}</button>`).join('');
 }
 render();
+// Captura automática: verifica notificações pendentes periodicamente
+setInterval(pullNotifs,5000);
+setTimeout(pullNotifs,2500);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pullNotifs()});
+window.addEventListener('focus',pullNotifs);
 </script>
 </body>
 </html>
