@@ -9,6 +9,7 @@
         {"uses": "actions/setup-node@v4", "with": {"node-version": 20}},
         {"uses": "actions/setup-java@v4", "with": {"distribution": "temurin", "java-version": 17}},
         {"name": "Preparar projeto Android", "run": "mkdir -p www && cp financas.html www/index.html && npm init -y && npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 && npx cap init 'Minhas Finanças' com.minhasfinancas.app --web-dir www && npx cap add android"},
+        {"name": "Instalar leitor de notificações", "run": "node android_overlay/inject.js"},
         {"name": "Adicionar ícones ao Android", "run": "mkdir -p android/app/src/main/res/mipmap-mdpi android/app/src/main/res/mipmap-hdpi android/app/src/main/res/mipmap-xhdpi android/app/src/main/res/mipmap-xxhdpi android/app/src/main/res/mipmap-xxxhdpi && cp -r android_assets/* android/app/src/main/res/ || echo 'Ícones não encontrados, pulando...'"},
         {"name": "Sincronizar Android", "run": "npx cap sync android"},
         {"name": "Gerar APK", "run": "cd android && chmod +x gradlew && ./gradlew assembleDebug"},
