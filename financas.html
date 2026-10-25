@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Minhas finanças</title>
+<link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%230F1226%22/><path d=%22M8 12h16M8 18h10M20 12v12%22 stroke=%22%2322E1D0%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>">
 <style>
 :root{--bg:#0F1226;--sf:#171B36;--ink:#EEF1FF;--mut:#8B93B8;--ac:#22E1D0;--on:#06202A;--ex:#F26BD9;--ln:#262B4D;--tint:#202547;--g1:linear-gradient(135deg,#D56EF5,#9A6BEA);--g2:linear-gradient(135deg,#22E8D4,#3F7FE8);color-scheme:dark;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
@@ -75,6 +76,18 @@ let S;try{S=JSON.parse(localStorage.getItem('fin1'))}catch(e){}
 S=S||{tx:[],buys:[],cards:[],ev:[]};
 if(!S.cards){S.cards=S.card&&S.buys.length?[{id:1,brand:'neon',close:S.card.close,due:S.card.due}]:[];S.buys.forEach(b=>b.cid=1)}
 const save=()=>{try{localStorage.setItem('fin1',JSON.stringify(S))}catch(e){}};
+
+// --- FUNÇÃO DE BACKUP DOS DADOS ---
+function exportBackup(){
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(S, null, 2));
+  const dlAnchor = document.createElement('a');
+  dlAnchor.setAttribute("href", dataStr);
+  dlAnchor.setAttribute("download", "minhas_financas_backup_" + today() + ".json");
+  document.body.appendChild(dlAnchor);
+  dlAnchor.click();
+  dlAnchor.remove();
+}
+
 const MN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const CATS=['Alimentação','Transporte','Moradia','Lazer','Saúde','Compras','Salário','Outros'];
 const BRANDS={neon:{n:'Neon',bg:'linear-gradient(135deg,#00E5E5,#0077B6)',fg:'#04202A'},picpay:{n:'PicPay',bg:'linear-gradient(135deg,#21C25E,#0B8A45)',fg:'#fff'},mp:{n:'Mercado Pago',bg:'linear-gradient(135deg,#00A8EA,#0069A8)',fg:'#fff'}};
@@ -211,7 +224,13 @@ function hist(){
  for(let i=n;i>n-12;i--){const l=S.tx.filter(x=>ix(x.date)==i),f=S.cards.reduce((s,c)=>s+invoice(i,c.id).t,0);all.push({i,in:sum(l,'in'),out:sum(l,'out'),f,has:l.length>0||f>0})}
  const ch=all.slice(0,6).reverse(),mx=Math.max(1,...ch.map(m=>Math.max(m.in,m.out))),rows=all.filter(m=>m.has);
  return`<h1>Histórico</h1><div class="cd"><div class="mu" style="margin-bottom:10px"><b class="in">■ Entradas</b> &nbsp; <b class="out">■ Saídas</b> · últimos 6 meses</div>${lineChart(ch,mx)}</div>
- <h3>Mês a mês</h3><div class="cd">${rows.length?rows.map(m=>{const b=m.in-m.out;return`<div class="r" onclick="cur=${m.i};tab='tx';render()"><div class="t"><div style="text-transform:capitalize">${mlabel(m.i)}</div><div class="mu">Entrou ${BRL.format(m.in)} · Saiu ${BRL.format(m.out)}${m.f?' · Fatura '+BRL.format(m.f):''}</div></div><div class="v ${b>=0?'in':'out'}">${BRL.format(b)}</div></div>`}).join(''):'<div class="em">Quando você registrar lançamentos, o histórico de cada mês aparece aqui.</div>'}</div>`;
+ <h3>Mês a mês</h3><div class="cd">${rows.length?rows.map(m=>{const b=m.in-m.out;return`<div class="r" onclick="cur=${m.i};tab='tx';render()"><div class="t"><div style="text-transform:capitalize">${mlabel(m.i)}</div><div class="mu">Entrou ${BRL.format(m.in)} · Saiu ${BRL.format(m.out)}${m.f?' · Fatura '+BRL.format(m.f):''}</div></div><div class="v ${b>=0?'in':'out'}">${BRL.format(b)}</div></div>`}).join(''):'<div class="em">Quando você registrar lançamentos, o histórico de cada mês aparece aqui.</div>'}</div>
+ 
+ <h3>Configurações & Backup</h3>
+ <div class="cd">
+  <button class="b w" onclick="exportBackup()" style="margin-bottom:10px">📥 Fazer Backup dos Dados (JSON)</button>
+  <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
+ </div>`;
 }
 function render(){
  $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda}[tab]();
