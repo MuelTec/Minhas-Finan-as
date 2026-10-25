@@ -126,8 +126,8 @@ const F=(l,h)=>`<label>${l}</label>${h}`;
 const sel=(id,o,val)=>`<select id="${id}">${o.map(x=>`<option value="${x[0]}" ${x[0]==val?'selected':''}>${x[1]}</option>`).join('')}</select>`;
 const inp=(id,val,extra='')=>`<input id="${id}" value="${esc(val)}" ${extra}>`;
 
-function txSheet(id){
- const t=S.tx.find(x=>x.id==id)||{type:'out',name:'',amt:'',cat:'Outros',date:today()};
+function txSheet(id,pre){
+ const t=S.tx.find(x=>x.id==id)||Object.assign({type:'out',name:'',amt:'',cat:'Outros',date:today()},pre||{});
  sheet(id?'Editar lançamento':'Novo lançamento',
   F('Tipo',sel('f_t',[['in','Entrada'],['out','Saída']],t.type))+F('Nome (com o que foi?)',inp('f_n',t.name,'placeholder="Ex.: Mercado"'))+
   F('Valor (R$)',inp('f_a',t.amt===''?'':String(t.amt).replace('.',','),'inputmode="decimal" placeholder="0,00"'))+
@@ -137,6 +137,56 @@ function txSheet(id){
    const o={id:t.id||Date.now(),type:v('f_t'),name:n,amt:a,cat:v('f_c'),date:v('f_d')};
    id?Object.assign(t,o):S.tx.push(o)},
   id?()=>{S.tx=S.tx.filter(x=>x.id!=id)}:null);
+}
+// --- Importação de notificações de banco/SMS ---
+function clipFill(){const ta=$('#f_x');if(navigator.clipboard&&navigator.clipboard.readText)navigator.clipboard.readText().then(t=>{if(t)ta.value=t}).catch(()=>ta.focus());else ta.focus()}
+function parseNotif(txt){
+ const t=String(txt||'').trim();if(!t)return null;
+ const m=t.match(/R\$\s*([\d.]+,\d{2})/i)||t.match(/R\$\s*([\d.]+)/i)||t.match(/(?:^|\s)([\d.]+,\d{2})(?=\s|$)/);
+ if(!m)return null;
+ const a=num(m[1]);if(!(a>0))return null;
+ const low=t.toLowerCase();
+ const inn=['receb','credit','depos','estorn','devolv','entrada','salár','holerite'];
+ const outw=['compra','pagament','pagou','débito','debito','saque','transfer','enviad','boleto','fatura','ted','assinatura','aprovad'];
+ let type;
+ if(inn.some(w=>low.includes(w)))type='in';
+ else if(outw.some(w=>low.includes(w)))type='out';
+ else if(low.includes('pix'))type=/enviad|para |realizada para|saiu/.test(low)?'out':'in';
+ else type='out';
+ let cat='Outros';
+ if(type=='in')cat=/salár|holerite|folha|funcionári/.test(low)?'Salário':'Outros';
+ else{const cg=[['Alimentação',['mercado','supermerc','restaur','lanche','padaria','ifood','rappi','pão','carne','feira','pizza','burguer','café','açúcar']],['Transporte',['uber','99app','posto','combust','gasolina','ônibus','onibus','metrô','metro','taxi','estacion','pedágio','ipva']],['Moradia',['aluguel','condomínio','condominio','energia','internet','iptu','imóvel','imovel']],['Lazer',['netflix','spotify','cinema','jogo','steam','bar','show','viagem','disney']],['Saúde',['farmácia','farmacia','drogaria','hospital','médic','medic','plano de saúde','academia']],['Compras',['loja','magazine','amazon','shopee','aliexpress','roupa','tênis','tenis','eletrônic','celular','mercado livre']]];
+  for(const[c,ws]of cg)if(ws.some(w=>low.includes(w))){cat=c;break}}
+ let name='';
+ const parts=t.split(/\s+[-–—]\s+/).map(s=>s.trim()).filter(s=>s&&!/R\$|^\s*[\d.]+,\d{2}\s*$/.test(s)&&!/^(hoje|ontem)$/i.test(s));
+ const bp=/^(compra|pagament|pix|saque|recebim|crédit|credit|débito|debito|boleto|fatura|transfer|estorno|aprovad|cartão|valores?|você)/i;
+ const cands=parts.filter(p=>!bp.test(p)&&!/\d+[.,]\d{2}/.test(p));
+ if(cands.length)name=cands[cands.length-1];
+ if(!name){const x=t.match(/\b(?:em|na|no|para|de)\s+([A-ZÀ-Ú][a-zà-úA-ZÀ-Ú&']{1,34}(?:\s+[a-zà-úA-ZÀ-ú&']{1,20}){0,3})/);if(x){let n=x[1].trim().replace(/\s+(em|de|no|na|do|da|com|por|a|o)$/i,'');if(n&&!bp.test(n))name=n}}
+ const ck=t.match(/final\s*(\d{4})/i);
+ if(ck&&!/final/i.test(name))name=name?name+' (final '+ck[1]+')':'Cartão final '+ck[1];
+ if(!name){const kw=['pix','saque','compra','boleto','fatura','ted','transferência','estorno'].find(w=>low.includes(w));name=kw?kw[0].toUpperCase()+kw.slice(1):'Notificação importada'}
+ if(name.length>50)name=name.slice(0,50);
+ let date=today();
+ if(/\bontem\b/.test(low)){const d=new Date();d.setDate(d.getDate()-1);date=new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
+ else{const dm=t.match(/\b(\d{2})\/(\d{2})(?:\/(\d{2,4}))?\b/);if(dm&&+dm[2]>=1&&+dm[2]<=12){const y=dm[3]?(dm[3].length==2?2000+ +dm[3]:+dm[3]):new Date().getFullYear();date=y+'-'+dm[2]+'-'+dm[1]}}
+ return{type,name,amt:a,cat,date};
+}
+function notifSheet(preset){
+ sheet('Importar notificação',
+  F('Texto da notificação (cole aqui)','<textarea id="f_x" rows="4" placeholder="Ex.: Compra aprovada no cartão final 1234 - R$ 45,90 - Supermercado"></textarea>')+
+  '<button class="b" style="width:100%;margin-top:8px" onclick="clipFill()">📋 Colar da área de transferência</button>'+
+  '<div class="mu" style="font-size:12px;margin-top:8px">Analiso o valor, o tipo e o estabelecimento e abro o lançamento para você revisar e salvar.</div>',
+  ()=>{const p=parseNotif(v('f_x'));
+   if(!p)return'Não achei o valor nesse texto. Cole a notificação completa.';
+   setTimeout(()=>txSheet(null,p),0);return''});
+ if(preset)$('#f_x').value=preset;
+ $('#bs').textContent='Analisar';
+}
+async function importNotif(){
+ let t='';try{t=await navigator.clipboard.readText()}catch(e){}
+ const p=parseNotif(t);
+ if(p)txSheet(null,p);else notifSheet(t);
 }
 function buyPrev(){
  const d=v('f_d'),n=Math.max(1,Math.min(48,parseInt(v('f_p'))||1));if(!d){$('#pv').textContent='';return}
@@ -204,7 +254,7 @@ function home(){
 }
 function txTab(){
  const l=monthTx();
- return mbar()+`<button class="b p w" onclick="txSheet()">Novo lançamento</button><div class="cd" style="margin-top:12px">${l.length?l.map(x=>`<div class="r" onclick="txSheet(${x.id})"><div class="t"><div>${esc(x.name)}</div><div class="mu">${x.cat} · ${fd(new Date(x.date+'T12:00'))}</div></div><div class="v ${x.type}">${x.type=='in'?'+':'−'} ${BRL.format(x.amt)}</div></div>`).join(''):'<div class="em">Sem lançamentos neste mês. Toque em “Novo lançamento”.</div>'}</div>`;
+ return mbar()+`<button class="b p w" onclick="txSheet()">Novo lançamento</button><button class="b w" style="margin-top:8px" onclick="importNotif()">📲 Importar notificação de banco</button><div class="cd" style="margin-top:12px">${l.length?l.map(x=>`<div class="r" onclick="txSheet(${x.id})"><div class="t"><div>${esc(x.name)}</div><div class="mu">${x.cat} · ${fd(new Date(x.date+'T12:00'))}</div></div><div class="v ${x.type}">${x.type=='in'?'+':'−'} ${BRL.format(x.amt)}</div></div>`).join(''):'<div class="em">Sem lançamentos neste mês. Toque em “Novo lançamento”.</div>'}</div>`;
 }
 function cardTab(){
  const c=cardOf(cc);if(!c)return mbar()+'<h1>Cartões</h1><div class="cd"><div class="em">Escolha entre Neon, PicPay e Mercado Pago para começar.</div></div><button class="b p w" onclick="cardSheet()">Adicionar cartão</button>';const inv=invoice(cur,c.id),run=S.buys.filter(b=>b.cid==c.id&&b.n>1&&first(b)+b.n-1>=cur).sort((a,b)=>(first(a)+a.n)-(first(b)+b.n));

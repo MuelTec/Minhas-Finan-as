@@ -1,0 +1,128 @@
+// Teste completo do app de finanças
+const puppeteer = require('puppeteer-core');
+const path = require('path');
+
+(async () => {
+  const browser = await puppeteer.launch({
+    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    headless: true
+  });
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
+
+  await page.goto('file:///' + path.resolve('financas.html').replace(/\\/g, '/'), { waitUntil: 'load' });
+
+  let pass = 0, fail = 0;
+  const check = (name, cond, extra = '') => {
+    if (cond) { pass++; console.log('  PASS: ' + name); }
+    else { fail++; console.log('  FAIL: ' + name + (extra ? ' -> ' + extra : '')); }
+  };
+
+  // 1. Sem erros de JS
+  console.log('\n[1] Erros de carregamento');
+  check('Sem erros de JS', errors.length === 0, errors.join(' | '));
+
+  // 2. parseNotif - unitários
+  console.log('\n[2] parseNotif (análise de notificações)');
+  const cases = [
+    { txt: 'Compra aprovada no cartão final 1234 - R$ 45,90 - Supermercado Pão de Açúcar',
+      exp: { type: 'out', amt: 45.9, cat: 'Alimentação' }, nameHas: 'Supermercado' },
+    { txt: 'PIX recebido de Maria - R$ 250,00',
+      exp: { type: 'in', amt: 250, cat: 'Outros' }, nameHas: 'Maria' },
+    { txt: 'Você recebeu um Pix de R$ 75,50 de João',
+      exp: { type: 'in', amt: 75.5 }, nameHas: 'João' },
+    { txt: 'Pagamento de boleto R$ 189,90 com vencimento hoje',
+      exp: { type: 'out', amt: 189.9 } },
+    { txt: 'Saque no valor de R$ 200,00 - hoje',
+      exp: { type: 'out', amt: 200 } },
+    { txt: 'TED enviada para Pedro - R$ 300,00',
+      exp: { type: 'out', amt: 300 } },
+    { txt: 'Salário de outubro - R$ 3.500,00',
+      exp: { type: 'in', amt: 3500, cat: 'Salário' } },
+    { txt: 'Pix enviado no valor de R$ 150,00 para João em 15/10/2026',
+      exp: { type: 'out', amt: 150 }, date: '2026-10-15', nameHas: 'João' },
+    { txt: 'Compra na Amazon de R$ 89,99 ontem',
+      exp: { type: 'out', amt: 89.99 } },
+    { txt: 'texto sem valor algum',
+      exp: null }
+  ];
+  for (const c of cases) {
+    const r = await page.evaluate(t => parseNotif(t), c.txt);
+    if (c.exp === null) {
+      check('rejeita: ' + c.txt.slice(0, 30), r === null, JSON.stringify(r));
+      continue;
+    }
+    let ok = r && r.type === c.exp.type && Math.abs(r.amt - c.exp.amt) < 0.005;
+    if (ok && c.exp.cat) ok = r.cat === c.exp.cat;
+    if (ok && c.exp.date) ok = r.date === c.exp.date;
+    if (ok && c.nameHas) ok = r.name.toLowerCase().includes(c.nameHas.toLowerCase());
+    check((ok ? '' : '(r=' + JSON.stringify(r) + ') ') + c.txt.slice(0, 45), ok);
+  }
+
+  // 3. Fluxo UI: importar notificação -> formulário pré-preenchido -> salvar
+  console.log('\n[3] Fluxo de importação pela interface');
+  await page.evaluate(() => { tab = 'tx'; render(); });
+  await page.click('button[onclick="importNotif()"]');
+  await page.waitForFunction(() => !document.querySelector('#ov').hidden && document.querySelector('#f_x'), { timeout: 3000 });
+  check('Folga de importação abriu', true);
+  await page.type('#f_x', 'Compra aprovada no cartão final 4321 - R$ 42,50 - Farmácia São Paulo');
+  await page.click('#bs'); // Analisar
+  await page.waitForFunction(() => document.querySelector('#f_t'), { timeout: 3000 });
+  const pre = await page.evaluate(() => ({
+    type: document.querySelector('#f_t').value,
+    name: document.querySelector('#f_n').value,
+    amt: document.querySelector('#f_a').value,
+    cat: document.querySelector('#f_c').value
+  }));
+  check('Formulário pré-preenchido (saída)', pre.type === 'out', JSON.stringify(pre));
+  check('Nome extraído', /Farmácia/i.test(pre.name), pre.name);
+  check('Valor formatado', pre.amt === '42,5', pre.amt);
+  check('Categoria Saúde', pre.cat === 'Saúde', pre.cat);
+  await page.click('#bs'); // Salvar lançamento
+  await page.waitForFunction(() => document.querySelector('#ov').hidden, { timeout: 3000 });
+  const saved = await page.evaluate(() => ({
+    n: S.tx.length,
+    last: S.tx[S.tx.length - 1],
+    ls: !!localStorage.getItem('fin1')
+  }));
+  check('Lançamento salvo em S.tx', saved.n === 1 && Math.abs(saved.last.amt - 42.5) < 0.005, JSON.stringify(saved.last));
+  check('Salvo no localStorage', saved.ls);
+
+  // 4. Validação de erro: texto sem valor
+  console.log('\n[4] Validação de erro');
+  await page.click('button[onclick="importNotif()"]');
+  await page.waitForFunction(() => document.querySelector('#f_x'), { timeout: 3000 });
+  await page.type('#f_x', 'sem valor aqui');
+  await page.click('#bs');
+  const err = await page.evaluate(() => document.querySelector('#er').textContent);
+  check('Mensagem de erro exibida', err.includes('valor'), err);
+  await page.click('#bc'); // Cancelar
+
+  // 5. Regressão: navegação e lançamento manual
+  console.log('\n[5] Regressão (abas e lançamento manual)');
+  for (const t of ['home', 'tx', 'hist', 'card', 'ag']) {
+    const ok = await page.evaluate(k => { try { tab = k; render(); return true } catch (e) { return false } }, t);
+    check('Aba ' + t + ' renderiza', ok);
+  }
+  const backupBtn = await page.evaluate(() => { tab = 'hist'; render(); return !!document.querySelector('button[onclick="exportBackup()"]') });
+  check('Botão de backup presente no Histórico', backupBtn);
+  await page.evaluate(() => { tab = 'tx'; render(); });
+  await page.click('button[onclick="txSheet()"]');
+  await page.waitForFunction(() => document.querySelector('#f_n'), { timeout: 3000 });
+  await page.type('#f_n', 'Teste manual');
+  await page.type('#f_a', '10,25');
+  await page.click('#bs');
+  await page.waitForFunction(() => document.querySelector('#ov').hidden, { timeout: 3000 });
+  const manual = await page.evaluate(() => S.tx.length);
+  check('Lançamento manual salvo (total=2)', manual === 2, 'total=' + manual);
+
+  console.log('\n=============================');
+  console.log('Resultado: ' + pass + ' passaram, ' + fail + ' falharam');
+  if (errors.length) console.log('Erros JS:\n' + errors.join('\n'));
+  console.log('=============================');
+
+  await browser.close();
+  process.exit(fail ? 1 : 0);
+})();
