@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Novo Ícone Combinado - Minhas Finanças</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;background:#0F1226;color:#EEF1FF;padding:20px;max-width:800px;margin:0 auto}
+h1{font-size:24px;margin-bottom:8px}
+p{color:#8B93B8;margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.card{background:#171B36;border:1px solid #262B4D;border-radius:16px;padding:20px;text-align:center}
+.icon-box{background:#0F1226;border-radius:12px;padding:24px;display:flex;justify-content:center;align-items:center;margin-bottom:16px;box-shadow:inset 0 2px 4px rgba(0,0,0,0.3)}
+h3{font-size:18px;margin:0 0 8px;color:#22E1D0}
+.desc{font-size:13px;color:#8B93B8;margin-bottom:16px;line-height:1.4}
+button{background:linear-gradient(135deg,#D56EF5,#9A6BEA);border:0;color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;width:100%}
+button:hover{opacity:0.9}
+</style>
+</head>
+<body>
+<h1>Fusão Perfeita: Versão 2 + Versão 3</h1>
+<p>Unimos o traço de pulso e tendência na parte superior com os pilares/barras ascendentes na parte inferior, criando um design integrado e harmonioso.</p>
+
+<div class="grid" style="justify-content:center">
+  <div class="card" style="max-width:340px;margin:0 auto">
+    <div class="icon-box">
+      <svg width="120" height="120" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Fundo do ícone com borda arredondada estilo app moderno -->
+        <rect width="32" height="32" rx="8" fill="#0F1226"/>
+        
+        <!-- Gradientes para os elementos -->
+        <defs>
+          <linearGradient id="lineGrad" x1="6" y1="18" x2="26" y2="10" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#22E1D0"/>
+            <stop offset="1" stop-color="#3F7FE8"/>
+          </linearGradient>
+        </defs>
+
+        <!-- PARTE INFERIOR (Versão 3): Pilares/Barras Ascendentes integradas sutilmente na base -->
+        <g opacity="0.85">
+          <rect x="8" y="19" width="3.5" height="7" rx="1" fill="#22E1D0"/>
+          <rect x="14" y="16" width="3.5" height="10" rx="1" fill="#3F7FE8"/>
+          <rect x="20" y="13" width="3.5" height="13" rx="1" fill="#D56EF5"/>
+        </g>
+
+        <!-- PARTE SUPERIOR (Versão 2): Linha de Pulso / Tendência fluida passando por cima -->
+        <path d="M6 14L11 9L16 14L22 8L26 12" stroke="url(#lineGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="26" cy="12" r="2.2" fill="#D56EF5"/>
+      </svg>
+    </div>
+    <h3>Versão Híbrida (Pulso + Barras)</h3>
+    <div class="desc">As barras inferiores formam a base sólida dos dados enquanto o gráfico de linha superior coroa o topo com elegância e dinamismo.</div>
+    <button onclick="alert('Ícone híbrido selecionado com sucesso!')">Definir como Ícone Oficial</button>
+  </div>
+</div>
+
+</body>
+</html>
