@@ -81,7 +81,7 @@ const $=s=>document.querySelector(s);
 let S;try{S=JSON.parse(localStorage.getItem('fin1'))}catch(e){}
 S=S||{tx:[],buys:[],cards:[],ev:[]};
 if(!S.cards){S.cards=S.card&&S.buys.length?[{id:1,brand:'neon',close:S.card.close,due:S.card.due}]:[];S.buys.forEach(b=>b.cid=1)}
-const save=()=>{try{localStorage.setItem('fin1',JSON.stringify(S))}catch(e){}};
+const save=()=>{try{S.upd=Date.now();localStorage.setItem('fin1',JSON.stringify(S))}catch(e){};scheduleSync()};
 
 // --- FUNÇÃO DE BACKUP DOS DADOS ---
 function exportBackup(){
@@ -121,6 +121,116 @@ function importBackup(){
   };
   inp.click();
 }
+// --- SINCRONIZAÇÃO ENTRE APARELHOS (GitHub Gist privado) ---
+const SKEY='fin_sync',GF='minhas-financas.json',GD='Minhas Finanças backup';
+function syncCfg(){try{return JSON.parse(localStorage.getItem(SKEY))}catch(e){return null}}
+function setSyncCfg(c){try{c?localStorage.setItem(SKEY,JSON.stringify(c)):localStorage.removeItem(SKEY)}catch(e){}}
+let syncBusy=false,syncTimer=null;
+function scheduleSync(){if(window.__noAutoSync)return;if(!syncCfg()||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),8000)}
+function autoSync(){if(window.__noAutoSync)return;if(!syncCfg())return;syncNow().then(r=>{if((r==='atualizado'||r==='conflito-nuvem')&&$('#ov').hidden)render()}).catch(()=>{})}
+async function ghApi(method,path,body){
+ const c=syncCfg();
+ const r=await fetch('https://api.github.com'+path,{method,headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:body==null?undefined:JSON.stringify(body)});
+ if(r.status===204)return null;
+ if(!r.ok){const e=new Error('HTTP '+r.status);e.status=r.status;throw e}
+ return r.json();
+}
+function cloudPayload(){return JSON.stringify({v:1,upd:S.upd||Date.now(),data:S})}
+function applyRemote(p){
+ try{localStorage.setItem('fin_local_backup',JSON.stringify(S))}catch(e){}
+ S=Object.assign({tx:[],buys:[],cards:[],ev:[]},p.data||{});
+ S.upd=p.upd||0;
+ try{localStorage.setItem('fin1',JSON.stringify(S))}catch(e){}
+}
+async function pushLocal(){
+ const c=syncCfg();
+ await ghApi('PATCH','/gists/'+c.gistId,{files:{[GF]:{content:cloudPayload()}}});
+ c.lastSync=Date.now();setSyncCfg(c);
+}
+async function syncConnect(tok){
+ tok=String(tok||'').trim();
+ if(!tok)return'Cole o token de acesso.';
+ const prev=syncCfg();
+ setSyncCfg({token:tok,gistId:prev&&prev.gistId?prev.gistId:null,lastSync:0});
+ try{await ghApi('GET','/user')}
+ catch(e){setSyncCfg(prev||null);return e.status===401?'Token inválido ou expirado.':'Não consegui validar o token ('+e.message+').'}
+ try{
+  const list=await ghApi('GET','/gists?per_page=100');
+  const found=(list||[]).find(g=>g.files&&g.files[GF]);
+  if(found){
+   setSyncCfg({token:tok,gistId:found.id,lastSync:0});
+   const g=await ghApi('GET','/gists/'+found.id);
+   let p=null;try{p=JSON.parse(g.files[GF].content)}catch(e){}
+   if(p&&p.data&&Array.isArray(p.data.tx)&&p.data.tx.length){
+    if(!(S.tx&&S.tx.length))applyRemote(p);
+    else{
+     const useLocal=confirm('Encontrei dados na nuvem E neste aparelho.\n\nOK = enviar a versão DESTE aparelho (substitui a nuvem)\nCancelar = baixar a versão da nuvem');
+     if(useLocal)await pushLocal();else applyRemote(p);
+    }
+   }else await pushLocal();
+   setSyncCfg(Object.assign(syncCfg(),{lastSync:Date.now()}));
+   return'';
+  }
+  const g=await ghApi('POST','/gists',{description:GD,public:false,files:{[GF]:{content:cloudPayload()}}});
+  setSyncCfg({token:tok,gistId:g.id,lastSync:Date.now()});
+  return'';
+ }catch(e){setSyncCfg(prev||null);return'Erro ao conectar: '+e.message}
+}
+async function syncNow(){
+ const c=syncCfg();
+ if(!c||!c.gistId||syncBusy)return null;
+ syncBusy=true;
+ try{
+  const g=await ghApi('GET','/gists/'+c.gistId);
+  const f=g.files[GF];
+  let p=null;if(f){try{p=JSON.parse(f.content)}catch(e){}}
+  const lu=S.upd||0,ru=p&&p.upd?p.upd:0;
+  if(!p||!p.data||!Array.isArray(p.data.tx)){await pushLocal();return'enviado'}
+  if(ru===lu){setSyncCfg(Object.assign(c,{lastSync:Date.now()}));return'em dia'}
+  if(ru<lu){await pushLocal();return'enviado'}
+  if(lu>c.lastSync){
+   const useLocal=confirm('Os dados mudaram nos dois aparelhos desde a última sincronização.\n\nOK = enviar a versão DESTE aparelho\nCancelar = baixar a versão da nuvem');
+   if(useLocal){await pushLocal();return'conflito-enviado'}
+   applyRemote(p);setSyncCfg(Object.assign(syncCfg(),{lastSync:Date.now()}));return'conflito-nuvem';
+  }
+  applyRemote(p);setSyncCfg(Object.assign(syncCfg(),{lastSync:Date.now()}));return'atualizado';
+ }catch(e){return'erro: '+e.message}
+ finally{syncBusy=false}
+}
+function syncHtml(){
+ const c=syncCfg();
+ if(!c)return`<div class="cd" style="margin-top:12px"><b>🔗 Sincronizar entre aparelhos</b>
+  <div class="mu" style="margin-top:6px">Use a mesma conta GitHub no Android e no iPhone para os dados ficarem iguais automaticamente.</div>
+  <input id="f_tok" type="password" autocomplete="off" placeholder="Token do GitHub" style="width:100%;margin-top:10px;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font:inherit">
+  <button class="b p w" style="margin-top:8px" onclick="syncConnectUI()">🔗 Conectar e sincronizar</button>
+  <div class="mu" style="font-size:12px;margin-top:8px">Criar o token (só 1 vez): abra <b>github.com/settings/tokens/new</b>, marque somente <b>gist</b> e clique em Generate. Depois copie e cole aqui.</div>
+ </div>`;
+ const ls=c.lastSync?new Date(c.lastSync).toLocaleString('pt-BR'):'—';
+ return`<div class="cd" style="margin-top:12px"><b>🔗 Sincronização ativa</b>
+  <div class="mu" style="margin-top:6px">Última sincronização: ${ls}</div>
+  <div id="syncMsg" class="mu" style="font-size:12px;min-height:16px"></div>
+  <button class="b p w" style="margin-top:8px" onclick="syncNowUI()">🔄 Sincronizar agora</button>
+  <button class="b w" style="margin-top:8px" onclick="syncDisconnect()">Desconectar</button>
+ </div>`;
+}
+async function syncConnectUI(){
+ const el=$('#f_tok');
+ const msg=await syncConnect(el?el.value:'');
+ if(msg){alert(msg);return}
+ render();
+ const r=await syncNow();
+ if(r&&r.startsWith('erro'))alert('Sincronização: '+r);
+ else alert('Conectado! Dados sincronizados.');
+}
+async function syncNowUI(){
+ const r=await syncNow();
+ const txt={'enviado':'Enviado para a nuvem ✅','atualizado':'Baixado da nuvem ✅','em dia':'Tudo em dia ✅','conflito-enviado':'Enviado a versão deste aparelho ✅','conflito-nuvem':'Baixado a versão da nuvem ✅'}[r]||(r&&r.startsWith('erro')?'Erro: '+r.slice(6):'');
+ const m=$('#syncMsg');
+ if(m&&txt)m.textContent=txt;
+ else if(txt)alert(txt);
+ if(r==='atualizado'||r==='conflito-nuvem')render();
+}
+function syncDisconnect(){if(confirm('Desconectar a sincronização? Os dados continuam salvos neste aparelho.')){setSyncCfg(null);render()}}
 
 const MN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const CATS=['Alimentação','Transporte','Moradia','Lazer','Saúde','Compras','Salário','Outros'];
@@ -337,7 +447,8 @@ function hist(){
   <button class="b w" onclick="exportBackup()" style="margin-bottom:10px">📥 Fazer Backup dos Dados (JSON)</button>
   <button class="b w" onclick="importBackup()" style="margin-bottom:10px">📂 Restaurar Backup</button>
   <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
- </div>`;
+ </div>
+ ${syncHtml()}`;
 }
 function render(){
  $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda}[tab]();
@@ -347,7 +458,7 @@ render();
 // Captura automática: verifica notificações pendentes periodicamente
 setInterval(pullNotifs,5000);
 setTimeout(pullNotifs,2500);
-function onBack(){if(!window.AndroidBridge)return;pullNotifs();if($('#ov').hidden)render()}
+function onBack(){if(window.AndroidBridge){pullNotifs();if($('#ov').hidden)render()}autoSync()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack()});
 window.addEventListener('focus',onBack);
 // PWA: manifest + service worker só no web de verdade (fora do app Android e fora de file://)
@@ -355,6 +466,8 @@ if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova)
   const lm=document.createElement('link');lm.rel='manifest';lm.href='manifest.webmanifest';document.head.appendChild(lm);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+// Sincronização: busca a nuvem ao abrir o app (se conectado)
+if(syncCfg())setTimeout(autoSync,3000);
 </script>
 </body>
 </html>

@@ -225,6 +225,99 @@ const path = require('path');
   check('ícone apple-touch 180px existe', fsMod.existsSync('webicons/apple-touch-icon.png'));
   check('Sem erros JS no bloco PWA', errors.length === 0, errors.join(' | '));
 
+  // 8. Sincronização entre aparelhos (GitHub Gist simulado)
+  console.log('\n[8] Sincronização entre aparelhos');
+  await page.evaluate(() => {
+    window.__noAutoSync = true;
+    localStorage.removeItem('fin_sync');
+    window.__confirmVal = false;
+    window.confirm = () => window.__confirmVal;
+    window.__st = { user: 200, list: [], remote: null, posts: [], patches: [] };
+    window.fetch = async (url, opt) => {
+      const u = String(url), m = (opt && opt.method) || 'GET';
+      const res = (ok, body, status) => ({ ok, status: status || (ok ? 200 : 401), json: async () => body || {} });
+      if (u.includes('/api.github.com/user'))
+        return window.__st.user === 200 ? res(true, { login: 'mueltec' }) : res(false);
+      if (m === 'POST') {
+        window.__st.posts.push(JSON.parse(opt.body));
+        return res(true, { id: 'G1', files: { 'minhas-financas.json': {} } });
+      }
+      if (m === 'PATCH') {
+        const body = JSON.parse(opt.body);
+        window.__st.patches.push(body);
+        window.__st.remote = body.files['minhas-financas.json'].content;
+        return res(true, {});
+      }
+      if (u.includes('/gists?')) return res(true, window.__st.list);
+      return res(true, { files: { 'minhas-financas.json': { content: window.__st.remote } } });
+    };
+  });
+  const s1 = await page.evaluate(() => syncConnect(''));
+  check('Conexão sem token recusa', s1.includes('Cole o token'), s1);
+  const s2 = await page.evaluate(() => { window.__st.user = 401; return syncConnect('TOKEN_INVALIDO'); });
+  const s2cfg = await page.evaluate(() => ({ cfg: syncCfg(), n: S.tx.length }));
+  check('Token inválido → erro 401', s2.includes('inválido'), s2);
+  check('Token inválido → sem config salva', s2cfg.cfg === null, JSON.stringify(s2cfg.cfg));
+  const s3 = await page.evaluate(async () => {
+    window.__st.user = 200; window.__st.list = [];
+    const err = await syncConnect('TOK_OK');
+    return { err, cfg: syncCfg(), posts: window.__st.posts.length,
+             sentTx: window.__st.posts.length ? JSON.parse(window.__st.posts[0].files['minhas-financas.json'].content).data.tx.length : -1 };
+  });
+  check('1º aparelho: cria gist privado', s3.err === '' && s3.cfg && s3.cfg.gistId === 'G1', JSON.stringify(s3));
+  check('1º aparelho: envia dados locais', s3.sentTx === 2, 'tx enviadas=' + s3.sentTx);
+  const s4 = await page.evaluate(async () => {
+    // 2º aparelho: gist já existe na nuvem com dados → adota a nuvem
+    window.__st.list = [{ id: 'G1', files: { 'minhas-financas.json': {} } }];
+    window.__st.remote = JSON.stringify({ v: 1, upd: Date.now() - 1000, data: {
+      tx: [{ id: 999, type: 'in', name: 'da nuvem', amt: 42, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [] } });
+    window.__confirmVal = false;
+    const err = await syncConnect('TOK_OK_2');
+    return { err, posts: window.__st.posts.length, name: S.tx[0] && S.tx[0].name, n: S.tx.length, cfg: syncCfg() };
+  });
+  check('2º aparelho: reencontra o gist (sem criar outro)', s4.err === '' && s4.posts === 1, JSON.stringify(s4));
+  check('2º aparelho: adota dados da nuvem', s4.n === 1 && s4.name === 'da nuvem', JSON.stringify(s4));
+  const s5 = await page.evaluate(async () => {
+    S.tx[0].name = 'local alterado'; save();
+    return await syncNow();
+  });
+  const s5patch = await page.evaluate(() => JSON.parse(window.__st.patches[window.__st.patches.length - 1].files['minhas-financas.json'].content).data.tx[0].name);
+  check('Local modificado → enviado para a nuvem', s5 === 'enviado' && s5patch === 'local alterado', s5 + ' | ' + s5patch);
+  const s6 = await page.evaluate(async () => {
+    // remoto fica MUITO mais novo e local também mudou → conflito
+    window.__st.remote = JSON.stringify({ v: 1, upd: Date.now() + 999999, data: {
+      tx: [{ id: 777, type: 'out', name: 'nuvem venceu', amt: 1, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [] } });
+    window.__confirmVal = true; // usuário escolhe o aparelho
+    const c = syncCfg(); c.lastSync = Date.now() - 5000; setSyncCfg(c);
+    S.tx[0].name = 'conflito local'; save();
+    const r = await syncNow();
+    return { r, name: S.tx[0].name };
+  });
+  check('Conflito (usuário escolhe local) → envia local', s6.r === 'conflito-enviado' && s6.name === 'conflito local', JSON.stringify(s6));
+  const s6b = await page.evaluate(async () => {
+    window.__st.remote = JSON.stringify({ v: 1, upd: Date.now() + 999999, data: {
+      tx: [{ id: 776, type: 'out', name: 'nuvem venceu', amt: 1, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [] } });
+    window.__confirmVal = false; // usuário escolhe a nuvem
+    const c = syncCfg(); c.lastSync = Date.now() - 5000; setSyncCfg(c);
+    S.tx[0].name = 'conflito local 2'; save();
+    const r = await syncNow();
+    return { r, name: S.tx[0] && S.tx[0].name };
+  });
+  check('Conflito (usuário escolhe nuvem) → baixa nuvem', s6b.r === 'conflito-nuvem' && s6b.name === 'nuvem venceu', JSON.stringify(s6b));
+  const s7 = await page.evaluate(() => { tab = 'hist'; render(); return document.body.innerText });
+  check('UI conectada mostra status e botões', s7.includes('Sincronização ativa') && s7.includes('Sincronizar agora'), s7.slice(0, 80));
+  const s8 = await page.evaluate(() => {
+    window.confirmVal = true; window.__confirmVal = true;
+    syncDisconnect();
+    tab = 'hist'; render();
+    return { cfg: syncCfg(), hasForm: !!document.querySelector('#f_tok'), txt: document.body.innerText };
+  });
+  check('Desconectar limpa a config', s8.cfg === null, JSON.stringify(s8.cfg));
+  check('UI desconectada mostra campo de token', s8.hasForm && s8.txt.includes('Conectar e sincronizar'));
+  const s9 = await page.evaluate(() => syncNow());
+  check('syncNow sem conexão é neutro', s9 === null, String(s9));
+  check('Sem erros JS no bloco de sincronização', errors.length === 0, errors.join(' | '));
+
   console.log('\n=============================');
   console.log('Resultado: ' + pass + ' passaram, ' + fail + ' falharam');
   if (errors.length) console.log('Erros JS:\n' + errors.join('\n'));
