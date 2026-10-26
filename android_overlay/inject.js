@@ -28,3 +28,19 @@ if (!xml.includes('NotifListenerService')) {
 }
 
 console.log('Leitor de notificações instalado com sucesso.');
+
+// 3) Assets web no app Android (favicon/manifest/ícones PWA)
+//    sw.js fica de fora de propósito: o app nativo não usa service worker.
+const www = 'www';
+if (fs.existsSync(www)) {
+  for (const f of ['icon.svg', 'manifest.webmanifest']) {
+    if (fs.existsSync(f)) fs.copyFileSync(f, path.join(www, f));
+  }
+  if (fs.existsSync('webicons')) {
+    fs.mkdirSync(path.join(www, 'webicons'), { recursive: true });
+    for (const f of fs.readdirSync('webicons')) {
+      fs.copyFileSync(path.join('webicons', f), path.join(www, 'webicons', f));
+    }
+  }
+  console.log('Assets web copiados para www/');
+}

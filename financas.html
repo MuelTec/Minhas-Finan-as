@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Minhas finanças</title>
 <link rel="icon" id="favicon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="webicons/apple-touch-icon.png">
+<meta name="theme-color" content="#0F1226">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Minhas Finanças">
 <style>
 :root{--bg:#0F1226;--sf:#171B36;--ink:#EEF1FF;--mut:#8B93B8;--ac:#22E1D0;--on:#06202A;--ex:#F26BD9;--ln:#262B4D;--tint:#202547;--g1:linear-gradient(135deg,#D56EF5,#9A6BEA);--g2:linear-gradient(135deg,#22E8D4,#3F7FE8);color-scheme:dark;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
@@ -87,6 +92,34 @@ function exportBackup(){
   document.body.appendChild(dlAnchor);
   dlAnchor.click();
   dlAnchor.remove();
+}
+
+// --- RESTAURAR BACKUP (valida e aplica; retorna '' em sucesso) ---
+function applyBackup(d){
+  if(!d||typeof d!=='object'||Array.isArray(d)||!Array.isArray(d.tx))
+    return'Arquivo inválido: não parece um backup do Minhas Finanças.';
+  S=Object.assign({tx:[],buys:[],cards:[],ev:[]},d);
+  if(!Array.isArray(S.cards))S.cards=[];
+  if(!Array.isArray(S.buys))S.buys=[];
+  if(!Array.isArray(S.ev))S.ev=[];
+  save();render();
+  return'';
+}
+function importBackup(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='application/json,.json';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      let d=null;try{d=JSON.parse(rd.result)}catch(e){}
+      const err=applyBackup(d);
+      if(err)alert(err);
+      else alert('Backup restaurado com sucesso! '+S.tx.length+' lançamento(s).');
+    };
+    rd.readAsText(f);
+  };
+  inp.click();
 }
 
 const MN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -302,6 +335,7 @@ function hist(){
  <h3>Configurações & Backup</h3>
  <div class="cd">
   <button class="b w" onclick="exportBackup()" style="margin-bottom:10px">📥 Fazer Backup dos Dados (JSON)</button>
+  <button class="b w" onclick="importBackup()" style="margin-bottom:10px">📂 Restaurar Backup</button>
   <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
  </div>`;
 }
@@ -316,6 +350,11 @@ setTimeout(pullNotifs,2500);
 function onBack(){if(!window.AndroidBridge)return;pullNotifs();if($('#ov').hidden)render()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack()});
 window.addEventListener('focus',onBack);
+// PWA: manifest + service worker só no web de verdade (fora do app Android e fora de file://)
+if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova){
+  const lm=document.createElement('link');lm.rel='manifest';lm.href='manifest.webmanifest';document.head.appendChild(lm);
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>

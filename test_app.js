@@ -175,6 +175,56 @@ const path = require('path');
   check('Sem bridge → sem status', st3 === '');
   check('Sem erros JS após captura', errors.length === 0, errors.join(' | '));
 
+  // 7. Restaurar backup (importação) + requisitos PWA/iOS
+  console.log('\n[7] Restaurar backup e PWA');
+  const backupOk = await page.evaluate(() => {
+    const bak = { tx: [{ id: 91, type: 'in', name: 'Pix teste', amt: 10, cat: 'Outros', date: '2026-10-20' },
+                       { id: 92, type: 'out', name: 'Mercado', amt: 55.5, cat: 'Alimentação', date: '2026-10-21' }],
+                  buys: [], cards: [], ev: [] };
+    const err = applyBackup(bak);
+    return { err, n: S.tx.length, ls: JSON.parse(localStorage.getItem('fin1')).tx.length };
+  });
+  check('Backup válido restaura (2 lançamentos)', backupOk.err === '' && backupOk.n === 2, JSON.stringify(backupOk));
+  check('Restauração persistida no localStorage', backupOk.ls === 2, 'ls=' + backupOk.ls);
+  const bakInvalid = await page.evaluate(() => ({
+    nullErr: applyBackup(null),
+    noTxErr: applyBackup({ foo: 1 }),
+    arrErr: applyBackup([1, 2]),
+    n: S.tx.length
+  }));
+  check('Backup nulo rejeitado', bakInvalid.nullErr.includes('inválido'), bakInvalid.nullErr);
+  check('JSON sem tx rejeitado', bakInvalid.noTxErr.includes('inválido'), bakInvalid.noTxErr);
+  check('Array rejeitado', bakInvalid.arrErr.includes('inválido'), bakInvalid.arrErr);
+  check('Dados preservados após tentativa inválida', bakInvalid.n === 2, 'n=' + bakInvalid.n);
+  const restoreBtn = await page.evaluate(() => { tab = 'hist'; render(); return !!document.querySelector('button[onclick="importBackup()"]') });
+  check('Botão "Restaurar Backup" no Histórico', restoreBtn);
+  const pwa = await page.evaluate(() => {
+    const h = document.documentElement.outerHTML;
+    return {
+      touchIcon: !!document.querySelector('link[rel="apple-touch-icon"][href$=".png"]'),
+      manifest: h.includes("lm.href='manifest.webmanifest'") || !!document.querySelector('link[rel="manifest"]'),
+      iosCapable: h.includes('apple-mobile-web-app-capable'),
+      themeColor: h.includes('theme-color'),
+      swReg: h.includes("serviceWorker'.register") || h.includes('serviceWorker.register') || h.includes("register('sw.js')"),
+      restoreFn: typeof importBackup === 'function' && typeof applyBackup === 'function'
+    };
+  });
+  check('apple-touch-icon aponta para PNG', pwa.touchIcon);
+  check('link do manifest presente', pwa.manifest);
+  check('meta iOS standalone presente', pwa.iosCapable);
+  check('meta theme-color presente', pwa.themeColor);
+  check('registro do service worker no código', pwa.swReg);
+  check('funções de backup/restore definidas', pwa.restoreFn);
+  const fsMod = require('fs');
+  check('manifest.webmanifest válido e completo',
+    fsMod.existsSync('manifest.webmanifest') &&
+    (() => { const m = JSON.parse(fsMod.readFileSync('manifest.webmanifest', 'utf8')); return m.display === 'standalone' && m.start_url && m.icons.length >= 2; })());
+  check('sw.js existe', fsMod.existsSync('sw.js'));
+  check('index.html raiz redireciona', fsMod.existsSync('index.html') &&
+    fsMod.readFileSync('index.html', 'utf8').includes('financas.html'));
+  check('ícone apple-touch 180px existe', fsMod.existsSync('webicons/apple-touch-icon.png'));
+  check('Sem erros JS no bloco PWA', errors.length === 0, errors.join(' | '));
+
   console.log('\n=============================');
   console.log('Resultado: ' + pass + ' passaram, ' + fail + ' falharam');
   if (errors.length) console.log('Erros JS:\n' + errors.join('\n'));

@@ -1,0 +1,17 @@
+{
+  "name": "Minhas Finanças",
+  "short_name": "Finanças",
+  "description": "Controle de gastos, cartões, lançamentos e orçamento.",
+  "lang": "pt-BR",
+  "start_url": "./financas.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F1226",
+  "theme_color": "#0F1226",
+  "icons": [
+    { "src": "webicons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "webicons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "webicons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
