@@ -76,10 +76,21 @@ input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--
 <main id="app"></main>
 <nav id="nav"></nav>
 <div class="ov" id="ov" hidden><div class="sh" id="sh"></div></div>
+<div class="ov" id="lks" hidden style="z-index:20;background:var(--bg,#0F1226);align-items:center">
+ <div style="width:100%;max-width:340px;text-align:center;padding:26px 20px calc(26px + env(safe-area-inset-bottom,0px))">
+  <div style="font-size:22px;font-weight:800">🔒 Minhas Finanças</div>
+  <div id="lk_sub" class="mu" style="margin-top:6px">Digite seu PIN de 4 dígitos</div>
+  <div id="lk_dots" style="font-size:30px;letter-spacing:12px;margin:16px 0 2px;color:var(--ac)"></div>
+  <div id="lk_err" style="color:var(--ex);min-height:20px;font-size:13px"></div>
+  <div id="lk_pad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:8px auto 0;max-width:260px"></div>
+  <div style="margin-top:14px"><button class="b w" style="max-width:260px" onclick="lockForgot()">🔑 Esqueci o PIN</button></div>
+ </div>
+</div>
 <script>
 const $=s=>document.querySelector(s);
 let S;try{S=JSON.parse(localStorage.getItem('fin1'))}catch(e){}
-S=S||{tx:[],buys:[],cards:[],ev:[]};
+S=S||{tx:[],buys:[],cards:[],ev:[],bud:{}};
+if(!S.bud||typeof S.bud!=='object')S.bud={};
 if(!S.cards){S.cards=S.card&&S.buys.length?[{id:1,brand:'neon',close:S.card.close,due:S.card.due}]:[];S.buys.forEach(b=>b.cid=1)}
 let lastBody=null;
 const save=()=>{try{
@@ -107,10 +118,11 @@ function exportBackup(){
 function applyBackup(d){
   if(!d||typeof d!=='object'||Array.isArray(d)||!Array.isArray(d.tx))
     return'Arquivo inválido: não parece um backup do Minhas Finanças.';
-  S=Object.assign({tx:[],buys:[],cards:[],ev:[]},d);
+  S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{}},d);
   if(!Array.isArray(S.cards))S.cards=[];
   if(!Array.isArray(S.buys))S.buys=[];
   if(!Array.isArray(S.ev))S.ev=[];
+  if(!S.bud||typeof S.bud!=='object')S.bud={};
   save();render();
   return'';
 }
@@ -151,15 +163,29 @@ async function ghApi(method,path,body){
  if(!r.ok){const e=new Error('HTTP '+r.status);e.status=r.status;throw e}
  return r.json();
 }
-function cloudPayload(){return JSON.stringify({v:1,upd:S.upd||Date.now(),data:S})}
+let cloudHist=[]; // versões anteriores guardadas na nuvem (desfazer)
+function pushHist(data,t){
+ if(!data||!Array.isArray(data.tx))return;
+ if(cloudHist.length&&JSON.stringify(cloudHist[0].data)===JSON.stringify(data))return; // evita duplicata
+ cloudHist.unshift({t:t||Date.now(),data:data});
+ cloudHist=cloudHist.slice(0,15); // mantém as 15 versões mais recentes
+}
+function cloudPayload(){return JSON.stringify({v:2,upd:S.upd||Date.now(),data:S,hist:cloudHist})}
 function applyRemote(p){
+ // Guarda a versão local que será substituída (desfazer)
+ if(S&&Array.isArray(S.tx)&&S.tx.length&&p&&p.data&&JSON.stringify(p.data)!==JSON.stringify(S))
+  pushHist(JSON.parse(JSON.stringify(S)),S.upd);
  try{localStorage.setItem('fin_local_backup',JSON.stringify(S))}catch(e){}
- S=Object.assign({tx:[],buys:[],cards:[],ev:[]},p.data||{});
+ S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{}},p.data||{});
+ if(!S.bud||typeof S.bud!=='object')S.bud={};
  S.upd=p.upd||0;
  try{localStorage.setItem('fin1',JSON.stringify(S))}catch(e){}
  const cur=S.upd;S.upd=0;lastBody=JSON.stringify(S);S.upd=cur;
 }
-async function pushLocal(){
+async function pushLocal(prevP){
+ // Guarda a versão que está sendo substituída na nuvem (desfazer)
+ if(prevP&&prevP.data&&Array.isArray(prevP.data.tx)&&JSON.stringify(prevP.data)!==JSON.stringify(S))
+  pushHist(prevP.data,prevP.upd);
  const c=syncCfg();
  await ghApi('PATCH','/gists/'+c.gistId,{files:{[GF]:{content:cloudPayload()}}});
  c.lastSync=Date.now();setSyncCfg(c);
@@ -178,11 +204,12 @@ async function syncConnect(tok){
    setSyncCfg({token:tok,gistId:found.id,lastSync:0});
    const g=await ghApi('GET','/gists/'+found.id);
    let p=null;try{p=JSON.parse(g.files[GF].content)}catch(e){}
+   if(p&&Array.isArray(p.hist))cloudHist=p.hist;
    if(p&&p.data&&Array.isArray(p.data.tx)&&p.data.tx.length){
     if(!(S.tx&&S.tx.length))applyRemote(p);
     else{
      const useLocal=confirm('Encontrei dados na nuvem E neste aparelho.\n\nOK = enviar a versão DESTE aparelho (substitui a nuvem)\nCancelar = baixar a versão da nuvem');
-     if(useLocal)await pushLocal();else applyRemote(p);
+     if(useLocal)await pushLocal(p);else applyRemote(p);
     }
    }else await pushLocal();
    setSyncCfg(Object.assign(syncCfg(),{lastSync:Date.now()}));
@@ -201,13 +228,14 @@ async function syncNow(){
   const g=await ghApi('GET','/gists/'+c.gistId);
   const f=g.files[GF];
   let p=null;if(f){try{p=JSON.parse(f.content)}catch(e){}}
+  if(p&&Array.isArray(p.hist))cloudHist=p.hist;
   const lu=S.upd||0,ru=p&&p.upd?p.upd:0;
   if(!p||!p.data||!Array.isArray(p.data.tx)){await pushLocal();return'enviado'}
   if(ru===lu){setSyncCfg(Object.assign(c,{lastSync:Date.now()}));return'em dia'}
-  if(ru<lu){await pushLocal();return'enviado'}
+  if(ru<lu){await pushLocal(p);return'enviado'}
   if(lu>c.lastSync){
    const useLocal=confirm('Os dados mudaram nos dois aparelhos desde a última sincronização.\n\nOK = enviar a versão DESTE aparelho\nCancelar = baixar a versão da nuvem');
-   if(useLocal){await pushLocal();return'conflito-enviado'}
+   if(useLocal){await pushLocal(p);return'conflito-enviado'}
    applyRemote(p);setSyncCfg(Object.assign(syncCfg(),{lastSync:Date.now()}));return'conflito-nuvem';
   }
   applyRemote(p);setSyncCfg(Object.assign(syncCfg(),{lastSync:Date.now()}));return'atualizado';
@@ -249,6 +277,167 @@ async function syncNowUI(){
 }
 function syncDisconnect(){if(confirm('Desconectar a sincronização? Os dados continuam salvos neste aparelho.')){setSyncCfg(null);render()}}
 
+// --- BLOQUEIO POR PIN (local, nunca vai para a nuvem) ---
+const LKEY='fin_lock';
+function lockCfg(){try{return JSON.parse(localStorage.getItem(LKEY))}catch(e){return null}}
+function setLockCfg(c){try{c?localStorage.setItem(LKEY,JSON.stringify(c)):localStorage.removeItem(LKEY)}catch(e){}}
+async function hashPin(p){
+ const s='MFpin:'+p;
+ try{
+  if(window.crypto&&crypto.subtle&&crypto.subtle.digest){
+   const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+   return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+ }catch(e){}
+ // fallback determinístico (ambientes sem crypto.subtle)
+ let h1=0x811c9dc5>>>0,h2=0x1b873593>>>0;
+ for(let i=0;i<s.length;i++){h1=((h1^s.charCodeAt(i))*16777619)>>>0;h2=(h2+s.charCodeAt(i)*(i+7))>>>0}
+ return 'f'+h1.toString(16).padStart(8,'0')+h2.toString(16).padStart(8,'0');
+}
+const recCode=()=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<8;i++)s+=A[Math.floor(Math.random()*A.length)];return s.slice(0,4)+'-'+s.slice(4)};
+let lockPin='';
+function lockPad(){
+ const keys=['1','2','3','4','5','6','7','8','9','','0','⌫'];
+ $('#lk_pad').innerHTML=keys.map(k=>k===''?'<span></span>':`<button class="b" style="padding:13px 0;font-size:19px;${k==='⌫'?'':'background:var(--tint);color:var(--ink);border-color:var(--ln)'}" onclick="lockKey('${k}')">${k}</button>`).join('');
+}
+function lockDots(){$('#lk_dots').textContent='●'.repeat(lockPin.length)+'○'.repeat(Math.max(0,4-lockPin.length))}
+function lockShow(msg){
+ if(!lockCfg())return;
+ lockPin='';lockPad();lockDots();
+ $('#lk_err').textContent=msg||'';
+ $('#lks').hidden=false;
+}
+function lockHide(){$('#lks').hidden=true;lockPin=''}
+async function lockKey(k){
+ if($('#lks').hidden)return;
+ if(k==='⌫'){lockPin=lockPin.slice(0,-1);lockDots();return}
+ if(lockPin.length>=4)return;
+ lockPin+=k;lockDots();
+ if(lockPin.length===4){
+  const l=lockCfg(),h=await hashPin(lockPin);
+  if(l&&h===l.h){lockHide();return}
+  lockPin='';lockDots();
+  $('#lk_err').textContent='PIN incorreto. Tente de novo.';
+ }
+}
+function lockForgot(){
+ const l=lockCfg();if(!l)return;
+ const r=prompt('Digite o código de recuperação gerado ao ativar o bloqueio:');
+ if(r==null)return;
+ if(String(r).trim().toUpperCase()===String(l.r).toUpperCase()){
+  setLockCfg(null);
+  lockHide();
+  alert('Bloqueio removido. Para ativar de novo com um PIN novo, use o botão de bloqueio no Histórico.');
+  render();
+ }else alert('Código de recuperação incorreto.');
+}
+function lockSheet(){
+ const l=lockCfg();
+ if(!l){
+  sheet('🔒 Ativar bloqueio por PIN',
+   F('Novo PIN (4 dígitos)',inp('f_p1','','inputmode="numeric" maxlength="4" type="password" autocomplete="new-password"'))+
+   F('Confirmar o PIN',inp('f_p2','','inputmode="numeric" maxlength="4" type="password" autocomplete="new-password"'))+
+   `<div class="mu">Com o bloqueio, quem pegar seu celular não abre seus dados. Se esquecer o PIN, o código de recuperação gerado agora é o seu salva-vidas.</div>`,
+   async ()=>{
+    const a=v('f_p1').trim(),b=v('f_p2').trim();
+    if(!/^\d{4}$/.test(a))return'O PIN precisa ter exatamente 4 números.';
+    if(a!==b)return'Os PINs não conferem.';
+    const rec=recCode();
+    setLockCfg({h:await hashPin(a),r:rec});
+    render();
+    alert('Bloqueio ativado! ✅\n\nGuarde seu código de recuperação:\n\n   '+rec+'\n\nSem ele (e sem o PIN), ninguém abre o app — nem você.');
+    return'';
+   });
+  return;
+ }
+ sheet('🔒 Bloqueio por PIN (ativo)',
+  `<div class="mu" style="margin-bottom:10px">O bloqueio está ativo neste aparelho. Para trocar o PIN, digite o atual. Para desativar, use o botão Excluir abaixo.</div>`+
+  F('PIN atual',inp('f_old','','inputmode="numeric" maxlength="4" type="password" autocomplete="current-password"'))+
+  F('Novo PIN (4 dígitos) — deixe em branco para manter',inp('f_p1','','inputmode="numeric" maxlength="4" type="password" autocomplete="new-password"'))+
+  F('Confirmar novo PIN',inp('f_p2','','inputmode="numeric" maxlength="4" type="password" autocomplete="new-password"')),
+  async ()=>{
+   const cur=v('f_old').trim(),a=v('f_p1').trim(),b=v('f_p2').trim();
+   if(await hashPin(cur)!==l.h)return'PIN atual incorreto.';
+   if(!a&&!b)return'';
+   if(!/^\d{4}$/.test(a))return'O novo PIN precisa ter exatamente 4 números.';
+   if(a!==b)return'Os novos PINs não conferem.';
+   const rec=recCode();
+   setLockCfg({h:await hashPin(a),r:rec});
+   render();
+   alert('PIN alterado! ✅\n\nNovo código de recuperação:\n\n   '+rec+'\n\nGuarde este novo código (o antigo parou de valer).');
+   return'';
+  },
+  ()=>{setLockCfg(null);lockHide();render();alert('Bloqueio por PIN desativado.')});
+}
+
+// --- ORÇAMENTO POR CATEGORIA ---
+function budHtml(by){
+ const bud=S.bud||{};
+ const items=CATS.map(c=>({c,lim:Number(bud[c])||0})).filter(x=>x.lim>0);
+ if(!items.length)return'';
+ const rows=items.map(({c,lim})=>{
+  const spent=by[c]||0,pct=lim>0?spent/lim*100:0;
+  const col=pct>=100?'var(--ex)':pct>=80?'#F2B84B':'var(--ac)';
+  const av=lim-spent;
+  return`<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:14px"><span>${c}</span><span class="mu"><b style="color:${col}">${Math.round(pct)}%</b> · ${BRL.format(spent)} de ${BRL.format(lim)}</span></div><div class="bar"><i style="width:${Math.min(100,pct)}%;background:${col}"></i></div><div class="mu" style="font-size:12px;margin-top:2px">${av>=0?'Faltam '+BRL.format(av):'Estourou em '+BRL.format(-av)}</div></div>`;
+ }).join('');
+ return`<h3>Orçamento de ${MN[cur%12]}</h3><div class="cd">${rows}</div>`;
+}
+function budSheet(){
+ const bud=S.bud||{};
+ sheet('🎯 Orçamento por categoria',
+  `<div class="mu" style="margin-bottom:12px">Defina um limite mensal por categoria. A barra de progresso aparece na tela Resumo. Deixe em branco para não ter limite.</div>`+
+  CATS.map((c,i)=>F(c,inp('fb'+i,bud[c]!=null?bud[c]:'','inputmode="decimal" placeholder="Sem limite"'))).join(''),
+  ()=>{
+   const nb={};
+   for(let i=0;i<CATS.length;i++){
+    const raw=String(v('fb'+i)||'').trim();
+    if(raw==='')continue;
+    const n=num(raw);
+    if(isNaN(n))return'Valor inválido em "'+CATS[i]+'". Use números (ex.: 800 ou 800,50).';
+    if(n<0)return'O limite de "'+CATS[i]+'" não pode ser negativo.';
+    if(n>0)nb[CATS[i]]=n;
+   }
+   S.bud=nb;save();render();return'';
+  });
+}
+
+// --- HISTÓRICO DE VERSÕES NA NUVEM (desfazer) ---
+async function histVerSheet(){
+ const c=syncCfg();
+ if(!c||!c.gistId){alert('Ative primeiro a sincronização entre aparelhos (botão logo abaixo). O histórico fica guardado na nuvem.');return}
+ try{
+  const g=await ghApi('GET','/gists/'+c.gistId);
+  const f=g.files[GF];
+  if(f){const p=JSON.parse(f.content);if(p&&Array.isArray(p.hist))cloudHist=p.hist}
+ }catch(e){}
+ const h=cloudHist;
+ const body=h.length?
+  `<div class="mu" style="margin-bottom:10px">As últimas ${h.length} versões guardadas na nuvem. Restaurar aplica a versão escolhida e a sincronização leva ela para os dois aparelhos.</div>`+
+  h.map((x,i)=>{
+   const d=new Date(x.t),n=(x.data&&Array.isArray(x.data.tx))?x.data.tx.length:0;
+   return`<div class="r" style="cursor:default"><div class="t"><div>${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div><div class="mu">${n} lançamento(s)</div></div><button class="b p" style="padding:9px 14px;font-size:14px" onclick="restoreVer(${i})">Restaurar</button></div>`;
+  }).join('')
+  :'<div class="em">Nenhuma versão anterior ainda. Elas aparecem sozinhas conforme seus dados mudam — inclusive se um aparelho substituir o outro.</div>';
+ sheet('🕘 Histórico de versões',body,()=>'');
+ const bs=$('#bs');if(bs)bs.remove();
+ const bc=$('#bc');if(bc)bc.textContent='Fechar';
+}
+async function restoreVer(i){
+ const h=cloudHist[i];
+ if(!h||!h.data)return'A versão não está disponível mais.';
+ if(!confirm('Restaurar a versão de '+new Date(h.t).toLocaleString('pt-BR')+'?\n\nOs dados atuais serão substituídos — e a versão atual fica guardada no histórico.'))return;
+ pushHist(JSON.parse(JSON.stringify(S)),S.upd); // guarda o "antes" para poder voltar
+ S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{}},h.data);
+ if(!Array.isArray(S.cards))S.cards=[];
+ if(!Array.isArray(S.buys))S.buys=[];
+ if(!Array.isArray(S.ev))S.ev=[];
+ if(!S.bud||typeof S.bud!=='object')S.bud={};
+ save();close();render();
+ syncNow().catch(()=>{});
+ alert('Versão restaurada ✅ — sincronizando com os outros aparelhos.');
+}
+
 const MN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const CATS=['Alimentação','Transporte','Moradia','Lazer','Saúde','Compras','Salário','Outros'];
 const BRANDS={neon:{n:'Neon',bg:'linear-gradient(135deg,#00E5E5,#0077B6)',fg:'#04202A'},picpay:{n:'PicPay',bg:'linear-gradient(135deg,#21C25E,#0B8A45)',fg:'#fff'},mp:{n:'Mercado Pago',bg:'linear-gradient(135deg,#00A8EA,#0069A8)',fg:'#fff'}};
@@ -278,7 +467,12 @@ function close(){$('#ov').hidden=true;save();render();if(pendingAuto.length)setT
 function sheet(title,body,onSave,onDel){
  $('#sh').innerHTML=`<h2>${title}</h2>${body}<div id="er"></div><div class="ac">${onDel?'<button class="b d" id="bd">Excluir</button>':''}<button class="b" id="bc">Cancelar</button><button class="b p" id="bs">Salvar</button></div>`;
  $('#ov').hidden=false;$('#bc').onclick=close;
- $('#bs').onclick=()=>{const e=onSave();if(e)$('#er').textContent=e;else close()};
+ // onSave pode devolver string (erro), nada (ok) ou Promise (funções assíncronas, ex.: PIN)
+ $('#bs').onclick=()=>{const e=onSave();
+  if(e&&typeof e.then==='function'){
+   e.then(r=>{if(r){const m=$('#er');if(m)m.textContent=r}else close()})
+    .catch(x=>{const m=$('#er');if(m)m.textContent=(x&&x.message)||String(x)});
+  }else if(e)$('#er').textContent=e;else close()};
  if(onDel)$('#bd').onclick=()=>{if(confirm('Excluir este item?')){onDel();close()}};
 }
 const v=id=>$('#'+id).value;
@@ -432,6 +626,7 @@ function home(){
  <div class="two"><div class="gc" style="background:var(--g2)"><small>Entradas</small><b>${BRL.format(i)}</b></div><div class="gc" style="background:var(--g1)"><small>Saídas</small><b>${BRL.format(o)}</b></div></div>
  <div class="cd" onclick="tab='card';render()" style="cursor:pointer"><div class="mu">Total das faturas de ${MN[cur%12]} (todos os cartões)</div><b style="font-size:26px;display:block;margin:4px 0 8px">${BRL.format(tot)}</b>${invs.length?invs.map(({c,inv})=>`<div style="display:flex;justify-content:space-between;margin-top:6px"><span>${BRANDS[c.brand].n} <span class="mu">fecha ${fd(closeD(cur,c))}</span></span><b>${BRL.format(inv.t)}</b></div>`).join('')+(tot?`<div class="mu" style="margin-top:8px">Saldo depois das faturas: <b class="${after>=0?'in':'out'}">${BRL.format(after)}</b></div>`:''):'<div class="em">Adicione seus cartões na aba Cartão.</div>'}</div>
  <h3>Para onde foi o dinheiro</h3><div class="cd">${cats.length?donut(cats,o):'<div class="em">Suas saídas por categoria aparecem aqui.</div>'}</div>
+ ${budHtml(by)}
  <h3>Próximos compromissos</h3><div class="cd">${up.length?up.map(evRow).join(''):'<div class="em">Nenhum compromisso à frente. Use a aba Agenda para adicionar.</div>'}</div>`;
 }
 function txTab(){
@@ -463,6 +658,9 @@ function hist(){
  <div class="cd">
   <button class="b w" onclick="exportBackup()" style="margin-bottom:10px">📥 Fazer Backup dos Dados (JSON)</button>
   <button class="b w" onclick="importBackup()" style="margin-bottom:10px">📂 Restaurar Backup</button>
+  <button class="b w" onclick="budSheet()" style="margin-bottom:10px">🎯 Orçamento por categoria</button>
+  <button class="b w" onclick="histVerSheet()" style="margin-bottom:10px">🕘 Histórico de versões (desfazer)</button>
+  <button class="b w" onclick="lockSheet()" style="margin-bottom:10px">${lockCfg()?'🔓 Bloqueio por PIN (ativo)':'🔒 Ativar bloqueio por PIN'}</button>
   <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
  </div>
  ${syncHtml()}`;
@@ -476,7 +674,7 @@ render();
 setInterval(pullNotifs,5000);
 setTimeout(pullNotifs,2500);
 function onBack(){if(window.AndroidBridge){pullNotifs();if($('#ov').hidden)render()}autoSync()}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack();else autoSync()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack();else{autoSync();if(lockCfg())lockShow()}});
 window.addEventListener('focus',onBack);
 // PWA: manifest + service worker só no web de verdade (fora do app Android e fora de file://)
 if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova){
@@ -485,6 +683,8 @@ if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova)
 }
 // Sincronização: atualiza a nuvem imediatamente ao abrir o app (se conectado)
 if(syncCfg())autoSync();
+// Bloqueio por PIN: pede o PIN logo na abertura (se ativado neste aparelho)
+if(lockCfg())lockShow();
 </script>
 </body>
 </html>

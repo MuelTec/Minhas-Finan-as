@@ -369,7 +369,7 @@ const path = require('path');
     const h = document.documentElement.outerHTML;
     return {
       open: h.includes('if(syncCfg())autoSync()'),
-      flush: h.includes('else autoSync()'),
+      flush: h.includes('else{autoSync()'),
       debounce: h.includes('autoSync(),1200'),
       queue: h.includes('entra na fila'),
       guard: h.includes("$('#ov')&&!$('#ov').hidden)return")
@@ -381,6 +381,192 @@ const path = require('path');
   check('fila quando o sync está ocupado', t6.queue);
   check('guarda de formulário aberto no código', t6.guard);
   check('Sem erros JS no bloco de fluidez', errors.length === 0, errors.join(' | '));
+
+  // 10. Bloqueio por PIN
+  console.log('\n[10] Bloqueio por PIN');
+  await page.evaluate(() => {
+    window.alert = m => { window.__alerts = (window.__alerts || []).concat(String(m).slice(0, 90)); };
+    window.prompt = () => window.__promptVal;
+    window.__alerts = [];
+  });
+  const p1 = await page.evaluate(async () => {
+    setLockCfg({ h: await hashPin('1234'), r: 'WXYZ-2345' });
+    lockShow();
+    return { shown: !$('#lks').hidden, dots: $('#lk_dots').textContent.length, pad: $('#lk_pad').children.length };
+  });
+  check('PIN ativo → tela de bloqueio aparece', p1.shown === true, JSON.stringify(p1));
+  check('teclado numérico montado (12 teclas)', p1.pad === 12, 'pad=' + p1.pad);
+  check('indicador dos 4 dígitos', p1.dots === 4, 'dots=' + p1.dots);
+  const p2 = await page.evaluate(async () => {
+    await lockKey('9'); await lockKey('9'); await lockKey('9'); await lockKey('9');
+    return { shown: !$('#lks').hidden, err: $('#lk_err').textContent, pin: lockPin };
+  });
+  check('PIN errado → recusa e limpa', p2.shown === true && p2.err.includes('incorreto') && p2.pin === '', JSON.stringify(p2));
+  const p3 = await page.evaluate(async () => {
+    await lockKey('1'); await lockKey('2'); await lockKey('3'); await lockKey('4');
+    return { shown: !$('#lks').hidden };
+  });
+  check('PIN certo → desbloqueia', p3.shown === false, JSON.stringify(p3));
+  const p4 = await page.evaluate(async () => {
+    setLockCfg(null);
+    lockSheet();                                    // sem PIN → fluxo de ativação
+    $('#f_p1').value = '12'; $('#f_p2').value = '12';
+    $('#bs').onclick();
+    await new Promise(r => setTimeout(r, 80));
+    const shortErr = $('#er') ? $('#er').textContent : '';
+    const open1 = !$('#ov').hidden;
+    $('#f_p1').value = '5678'; $('#f_p2').value = '9999';
+    $('#bs').onclick();
+    await new Promise(r => setTimeout(r, 80));
+    const diffErr = $('#er') ? $('#er').textContent : '';
+    $('#f_p1').value = '5678'; $('#f_p2').value = '5678';
+    $('#bs').onclick();
+    await new Promise(r => setTimeout(r, 120));
+    const cfg = lockCfg();
+    return { shortErr, open1, diffErr, closed: $('#ov').hidden, hasCfg: !!(cfg && cfg.h), rec: cfg ? cfg.r : '' };
+  });
+  check('ativação: PIN curto é recusado', p4.shortErr.includes('4 números') && p4.open1, JSON.stringify(p4));
+  check('ativação: PINs diferentes são recusados', p4.diffErr.includes('não conferem'), JSON.stringify(p4));
+  check('ativação: salva hash + código de recuperação', p4.closed && p4.hasCfg && /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(p4.rec), JSON.stringify(p4));
+  const p5 = await page.evaluate(() => {
+    window.__promptVal = 'WRONG-CODE';
+    lockShow();
+    lockForgot();
+    const stillLocked = !$('#lks').hidden && !!lockCfg();
+    window.__promptVal = (lockCfg() || {}).r;
+    lockForgot();
+    return { stillLocked, removed: !lockCfg(), hidden: $('#lks').hidden };
+  });
+  check('código de recuperação errado → mantém bloqueio', p5.stillLocked === true, JSON.stringify(p5));
+  check('código certo → remove o bloqueio', p5.removed === true && p5.hidden === true, JSON.stringify(p5));
+  const p6 = await page.evaluate(async () => {
+    setLockCfg({ h: await hashPin('1111'), r: 'AAAA-BBBB' });
+    const payload = cloudPayload();
+    const fin1 = localStorage.getItem('fin1') || '';
+    const h = lockCfg().h;
+    const r = {
+      payloadLeak: payload.includes('fin_lock') || payload.includes(h),
+      fin1Leak: fin1.includes('fin_lock') || fin1.includes(h),
+      hashStable: (await hashPin('1111')) === h
+    };
+    setLockCfg(null);
+    return r;
+  });
+  check('PIN fica SÓ no aparelho (não vai pra nuvem nem pro fin1)', !p6.payloadLeak && !p6.fin1Leak, JSON.stringify(p6));
+  check('hash estável (mesmo PIN → mesmo hash)', p6.hashStable, JSON.stringify(p6));
+  check('Sem erros JS no bloco de PIN', errors.length === 0, errors.join(' | '));
+
+  // 11. Orçamento por categoria
+  console.log('\n[11] Orçamento por categoria');
+  const b1 = await page.evaluate(() => {
+    budSheet();
+    $('#fb0').value = '800,50';          // Alimentação (válido)
+    $('#fb1').value = 'abc';             // Transporte (inválido)
+    $('#bs').onclick();
+    const err1 = $('#er') ? $('#er').textContent : '';
+    const open1 = !$('#ov').hidden;
+    $('#fb1').value = '-50';             // negativo
+    $('#bs').onclick();
+    const err2 = $('#er') ? $('#er').textContent : '';
+    $('#fb1').value = '';                // vazio = sem limite
+    $('#fb2').value = '1500';            // Moradia
+    $('#bs').onclick();
+    return { err1, open1, err2, closed: $('#ov').hidden, bud: JSON.parse(JSON.stringify(S.bud || {})) };
+  });
+  check('orçamento: valor inválido recusa', b1.err1.includes('inválido') && b1.open1, JSON.stringify(b1));
+  check('orçamento: valor negativo recusa', b1.err2.includes('negativo'), JSON.stringify(b1));
+  check('orçamento: valores válidos salvos (vírgula decimal)', b1.closed && b1.bud['Alimentação'] === 800.5 && b1.bud['Moradia'] === 1500, JSON.stringify(b1));
+  const b2 = await page.evaluate(() => {
+    S.tx.push({ id: Date.now(), type: 'out', name: 'Teste orçamento', amt: 700, cat: 'Alimentação', date: today() });
+    save();
+    tab = 'home'; render();
+    const html = document.getElementById('app').innerHTML;
+    const txt = document.body.innerText;
+    return { hasSection: txt.includes('Orçamento de'), pct: html.includes('87%'), alert80: html.includes('#F2B84B'), bar: html.includes('Faltam') };
+  });
+  check('Resumo mostra a seção "Orçamento de {mês}"', b2.hasSection, JSON.stringify(b2));
+  check('progresso calculado (700 de 800,50 = 87%)', b2.pct, JSON.stringify(b2));
+  check('cor de alerta ≥80% (#F2B84B) + texto faltam', b2.alert80 && b2.bar, JSON.stringify(b2));
+  const b3 = await page.evaluate(() => {
+    S.tx.push({ id: Date.now() + 1, type: 'out', name: 'Estouro testado', amt: 150, cat: 'Alimentação', date: today() });
+    save();
+    tab = 'home'; render();
+    const html = document.getElementById('app').innerHTML;
+    const txt = document.body.innerText;
+    return { pct: html.includes('106%'), estourou: txt.includes('Estourou em'), danger: html.includes('var(--ex)') };
+  });
+  check('estouro (>100%) → cor de perigo + "Estourou em"', b3.pct && b3.estourou && b3.danger, JSON.stringify(b3));
+  const b4 = await page.evaluate(() => {
+    const err = applyBackup({ tx: [], buys: [], cards: [], ev: [] });   // backup antigo, sem bud
+    return { err, bud: S.bud, isObj: typeof S.bud === 'object' && S.bud !== null };
+  });
+  check('backup antigo (sem orçamento) → S.bud vira objeto', b4.err === '' && b4.isObj, JSON.stringify(b4));
+  const b5 = await page.evaluate(() => { tab = 'hist'; render(); return document.body.innerText });
+  check('botões no Histórico (orçamento/versões/bloqueio)', b5.includes('Orçamento por categoria') && b5.includes('Histórico de versões') && b5.includes('bloqueio por PIN'), b5.slice(0, 60));
+  check('Sem erros JS no bloco de orçamento', errors.length === 0, errors.join(' | '));
+
+  // 12. Histórico de versões na nuvem (desfazer)
+  console.log('\n[12] Histórico de versões (desfazer)');
+  const v1 = await page.evaluate(async () => {
+    window.__confirmVal = true;
+    window.confirm = () => window.__confirmVal;
+    window.alert = () => {};
+    window.__st.user = 200;
+    window.__st.list = [{ id: 'G1', files: { 'minhas-financas.json': {} } }];
+    if (!syncCfg()) { const e = await syncConnect('TOK_HIST'); if (e) return { err: e }; }
+    cloudHist = [];
+    S = { tx: [{ id: 1, type: 'in', name: 'versão A local', amt: 100, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [], bud: {}, upd: 0 };
+    save();
+    window.__st.remote = JSON.stringify({ v: 1, upd: Date.now() + 60000, data: {
+      tx: [{ id: 5, type: 'out', name: 'versão B da nuvem', amt: 10, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [], bud: {} } });
+    const c = syncCfg(); c.lastSync = Date.now() - 99999; setSyncCfg(c);
+    const r = await syncNow();   // conflito → usuário escolhe local → pushLocal(p) guarda a nuvem anterior
+    return { err: '', r, patches: window.__st.patches.length };
+  });
+  check('conflito com escolha local → envia', v1.err === '' && v1.r === 'conflito-enviado', JSON.stringify(v1));
+  const v2 = await page.evaluate(() => {
+    const last = JSON.parse(window.__st.patches[window.__st.patches.length - 1].files['minhas-financas.json'].content);
+    return { v: last.v, histN: (last.hist || []).length, histTx: last.hist && last.hist[0] && last.hist[0].data.tx[0].name, curTx: last.data.tx[0].name };
+  });
+  check('payload virou v2 com histórico', v2.v === 2 && v2.histN === 1, JSON.stringify(v2));
+  check('versão substituída guardada (dá pra desfazer)', v2.histTx === 'versão B da nuvem', JSON.stringify(v2));
+  check('versão atual na nuvem é a local', v2.curTx === 'versão A local', JSON.stringify(v2));
+  const v3 = await page.evaluate(async () => {
+    tab = 'hist'; render();
+    histVerSheet();
+    await new Promise(r => setTimeout(r, 300));
+    const rows = document.querySelectorAll('#sh .r').length;
+    const btn = !!document.querySelector('#sh button[onclick^="restoreVer"]');
+    const txt = document.querySelector('#sh').innerText;
+    const noSalvar = !document.querySelector('#bs');
+    return { rows, btn, noSalvar, txt: txt.slice(0, 100) };
+  });
+  check('lista as versões salvas com botão Restaurar', v3.rows === 1 && v3.btn, JSON.stringify(v3));
+  check('folha é somente-leitura (sem botão Salvar)', v3.noSalvar, JSON.stringify(v3));
+  const v4 = await page.evaluate(async () => {
+    window.confirm = () => true;
+    await restoreVer(0);
+    await new Promise(r => setTimeout(r, 300));
+    return { name: S.tx[0] && S.tx[0].name, n: S.tx.length, closed: $('#ov').hidden, histN: cloudHist.length };
+  });
+  check('restaurar aplica a versão antiga', v4.name === 'versão B da nuvem' && v4.n === 1 && v4.closed, JSON.stringify(v4));
+  check('versão atual guardada antes de restaurar (pode voltar atrás)', v4.histN >= 2, 'histN=' + v4.histN);
+  const v5 = await page.evaluate(async () => {
+    await new Promise(r => setTimeout(r, 300));
+    const last = JSON.parse(window.__st.patches[window.__st.patches.length - 1].files['minhas-financas.json'].content);
+    return { v: last.v, curTx: last.data.tx[0].name, histN: (last.hist || []).length };
+  });
+  check('restauração propagada para a nuvem', v5.v === 2 && v5.curTx === 'versão B da nuvem', JSON.stringify(v5));
+  const v6 = await page.evaluate(() => {
+    cloudHist = [];
+    const mk = n => ({ tx: Array.from({ length: n }, (_, i) => ({ id: i })), buys: [], cards: [], ev: [], bud: {} });
+    for (let i = 0; i < 20; i++) pushHist(mk(i + 1), 1000 + i);
+    const cap = cloudHist.length;
+    cloudHist = [];
+    return cap;
+  });
+  check('limite de 15 versões (as mais antigas caem)', v6 === 15, 'cap=' + v6);
+  check('Sem erros JS no bloco de versões', errors.length === 0, errors.join(' | '));
 
   console.log('\n=============================');
   console.log('Resultado: ' + pass + ' passaram, ' + fail + ' falharam');

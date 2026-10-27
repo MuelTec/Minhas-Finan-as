@@ -5,3 +5,5 @@ package.json
 package-lock.json
 capacitor.config.json
 apk_analysis/
+*.keystore
+*.keystore.b64
