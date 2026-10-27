@@ -318,6 +318,70 @@ const path = require('path');
   check('syncNow sem conexão é neutro', s9 === null, String(s9));
   check('Sem erros JS no bloco de sincronização', errors.length === 0, errors.join(' | '));
 
+  // 9. Sincronização fluida (imediata e sem requisições inúteis)
+  console.log('\n[9] Sincronização fluida');
+  const t1 = await page.evaluate(() => {
+    save();                       // sincroniza a referência do conteúdo
+    S.upd = 999999;               // marca artificial
+    save();                       // nada mudou → deve ignorar
+    return S.upd;
+  });
+  check('save sem mudança real é ignorado (sem sync)', t1 === 999999, 'upd=' + t1);
+  const t2 = await page.evaluate(async () => {
+    window.__st.user = 200; window.__st.list = [];
+    const cerr = await syncConnect('TOK_FLUID2');   // reconecta (sem token não há o que agendar)
+    window.__noAutoSync = false;
+    S.tx[0].amt = 777;
+    save();
+    const armed = syncTimer != null;
+    clearTimeout(syncTimer); syncTimer = null;
+    window.__noAutoSync = true;
+    return { cerr, armed, upd: S.upd, ls: JSON.parse(localStorage.getItem('fin1')).tx[0].amt };
+  });
+  check('alteração agenda sync imediato (~1,2s)', t2.armed === true && t2.cerr === '', JSON.stringify(t2));
+  check('alteração persistida no aparelho', t2.ls === 777, JSON.stringify(t2));
+  const t4 = await page.evaluate(async () => {
+    window.__noAutoSync = false;
+    window.__st.user = 200; window.__st.list = [];
+    const err = await syncConnect('TOK_FLUID');
+    if (err) return { err };
+    window.__st.remote = JSON.stringify({ v: 1, upd: Date.now() + 999999, data: {
+      tx: [{ id: 1, type: 'in', name: 'NAO_DEVE_ENTRAR', amt: 9, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [] } });
+    txSheet();                    // usuário está preenchendo um formulário
+    const before = S.tx[0].name;
+    autoSync();                   // deve ser ignorado enquanto a folha estiver aberta
+    await new Promise(r => setTimeout(r, 250));
+    const after = S.tx[0].name;
+    close();
+    clearTimeout(syncTimer); syncTimer = null;
+    return { err: '', before, after, changed: before !== after };
+  });
+  check('autoSync NÃO mexe nos dados com formulário aberto', t4.err === '' && t4.changed === false, JSON.stringify(t4));
+  const t5 = await page.evaluate(async () => {
+    window.__st.remote = JSON.stringify({ v: 1, upd: Date.now() + 999999, data: {
+      tx: [{ id: 2, type: 'in', name: 'nuvem deve entrar', amt: 5, cat: 'Outros', date: '2026-10-26' }], buys: [], cards: [], ev: [] } });
+    const r = await syncNow();
+    window.__noAutoSync = true;
+    return { r, name: S.tx[0] && S.tx[0].name };
+  });
+  check('sem formulário → baixa atualização da nuvem', t5.r === 'atualizado' && t5.name === 'nuvem deve entrar', JSON.stringify(t5));
+  const t6 = await page.evaluate(() => {
+    const h = document.documentElement.outerHTML;
+    return {
+      open: h.includes('if(syncCfg())autoSync()'),
+      flush: h.includes('else autoSync()'),
+      debounce: h.includes('autoSync(),1200'),
+      queue: h.includes('entra na fila'),
+      guard: h.includes("$('#ov')&&!$('#ov').hidden)return")
+    };
+  });
+  check('abertura já sincroniza (sem atraso)', t6.open, JSON.stringify(t6));
+  check('envia ao minimizar o app (iOS)', t6.flush);
+  check('debounce curto de 1,2s após salvar', t6.debounce);
+  check('fila quando o sync está ocupado', t6.queue);
+  check('guarda de formulário aberto no código', t6.guard);
+  check('Sem erros JS no bloco de fluidez', errors.length === 0, errors.join(' | '));
+
   console.log('\n=============================');
   console.log('Resultado: ' + pass + ' passaram, ' + fail + ' falharam');
   if (errors.length) console.log('Erros JS:\n' + errors.join('\n'));

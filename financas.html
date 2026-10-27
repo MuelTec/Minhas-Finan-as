@@ -81,7 +81,16 @@ const $=s=>document.querySelector(s);
 let S;try{S=JSON.parse(localStorage.getItem('fin1'))}catch(e){}
 S=S||{tx:[],buys:[],cards:[],ev:[]};
 if(!S.cards){S.cards=S.card&&S.buys.length?[{id:1,brand:'neon',close:S.card.close,due:S.card.due}]:[];S.buys.forEach(b=>b.cid=1)}
-const save=()=>{try{S.upd=Date.now();localStorage.setItem('fin1',JSON.stringify(S))}catch(e){};scheduleSync()};
+let lastBody=null;
+const save=()=>{try{
+  // Só persiste (e sincroniza) se os dados realmente mudaram
+  const prev=S.upd;S.upd=0;const body=JSON.stringify(S);S.upd=prev;
+  if(body===lastBody)return;
+  lastBody=body;
+  S.upd=Date.now();
+  localStorage.setItem('fin1',JSON.stringify(S));
+  scheduleSync();
+}catch(e){}};
 
 // --- FUNÇÃO DE BACKUP DOS DADOS ---
 function exportBackup(){
@@ -126,8 +135,15 @@ const SKEY='fin_sync',GF='minhas-financas.json',GD='Minhas Finanças backup';
 function syncCfg(){try{return JSON.parse(localStorage.getItem(SKEY))}catch(e){return null}}
 function setSyncCfg(c){try{c?localStorage.setItem(SKEY,JSON.stringify(c)):localStorage.removeItem(SKEY)}catch(e){}}
 let syncBusy=false,syncTimer=null;
-function scheduleSync(){if(window.__noAutoSync)return;if(!syncCfg()||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),8000)}
-function autoSync(){if(window.__noAutoSync)return;if(!syncCfg())return;syncNow().then(r=>{if((r==='atualizado'||r==='conflito-nuvem')&&$('#ov').hidden)render()}).catch(()=>{})}
+function scheduleSync(){if(window.__noAutoSync)return;if(!syncCfg()||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),1200)}
+function autoSync(){
+ if(window.__noAutoSync)return;
+ if(!syncCfg())return;
+ // Não mexe nos dados enquanto o usuário está com um formulário aberto
+ if($('#ov')&&!$('#ov').hidden)return;
+ if(syncBusy){clearTimeout(syncTimer);syncTimer=setTimeout(autoSync,1200);return} // entra na fila
+ syncNow().then(r=>{if((r==='atualizado'||r==='conflito-nuvem')&&$('#ov').hidden)render()}).catch(()=>{})
+}
 async function ghApi(method,path,body){
  const c=syncCfg();
  const r=await fetch('https://api.github.com'+path,{method,headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:body==null?undefined:JSON.stringify(body)});
@@ -141,6 +157,7 @@ function applyRemote(p){
  S=Object.assign({tx:[],buys:[],cards:[],ev:[]},p.data||{});
  S.upd=p.upd||0;
  try{localStorage.setItem('fin1',JSON.stringify(S))}catch(e){}
+ const cur=S.upd;S.upd=0;lastBody=JSON.stringify(S);S.upd=cur;
 }
 async function pushLocal(){
  const c=syncCfg();
@@ -459,15 +476,15 @@ render();
 setInterval(pullNotifs,5000);
 setTimeout(pullNotifs,2500);
 function onBack(){if(window.AndroidBridge){pullNotifs();if($('#ov').hidden)render()}autoSync()}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)onBack();else autoSync()});
 window.addEventListener('focus',onBack);
 // PWA: manifest + service worker só no web de verdade (fora do app Android e fora de file://)
 if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova){
   const lm=document.createElement('link');lm.rel='manifest';lm.href='manifest.webmanifest';document.head.appendChild(lm);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
-// Sincronização: busca a nuvem ao abrir o app (se conectado)
-if(syncCfg())setTimeout(autoSync,3000);
+// Sincronização: atualiza a nuvem imediatamente ao abrir o app (se conectado)
+if(syncCfg())autoSync();
 </script>
 </body>
 </html>
