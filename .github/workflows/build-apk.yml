@@ -12,8 +12,8 @@
         {"name": "Instalar leitor de notificações", "run": "node android_overlay/inject.js"},
         {"name": "Adicionar ícones ao Android", "run": "mkdir -p android/app/src/main/res/mipmap-mdpi android/app/src/main/res/mipmap-hdpi android/app/src/main/res/mipmap-xhdpi android/app/src/main/res/mipmap-xxhdpi android/app/src/main/res/mipmap-xxxhdpi && cp -r android_assets/* android/app/src/main/res/ || echo 'Ícones não encontrados, pulando...'"},
         {"name": "Sincronizar Android", "run": "npx cap sync android"},
-        {"name": "Gerar APK", "run": "cd android && chmod +x gradlew && ./gradlew assembleDebug"},
-        {"uses": "actions/upload-artifact@v4", "with": {"name": "minhas-financas-apk", "path": "android/app/build/outputs/apk/debug/app-debug.apk"}}
+        {"name": "Gerar APK", "run": "node android_overlay/release_sign.js && cd android && chmod +x gradlew && ./gradlew assembleRelease", "env": {"ANDROID_KEYSTORE_B64": "${{ secrets.ANDROID_KEYSTORE_B64 }}", "ANDROID_KEYSTORE_PASS": "${{ secrets.ANDROID_KEYSTORE_PASS }}", "ANDROID_KEY_ALIAS": "${{ secrets.ANDROID_KEY_ALIAS }}", "ANDROID_KEY_PASS": "${{ secrets.ANDROID_KEY_PASS }}"}},
+        {"uses": "actions/upload-artifact@v4", "with": {"name": "minhas-financas-apk", "path": "android/app/build/outputs/apk/release/app-release.apk"}}
       ]
     }
   }
