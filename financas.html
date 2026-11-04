@@ -611,8 +611,12 @@ function evRow(e){const p=P(e.date);
  return`<div class="r ${e.done?'dn':''}"><input type="checkbox" aria-label="Concluído" ${e.done?'checked':''} onchange="toggleEv(${e.id},this.checked)"><div class="dt"><b>${p.d}</b><span>${MN[p.m].slice(0,3)}</span></div><div class="t" onclick="evSheet(${e.id})"><div>${esc(e.title)}</div><div class="mu">${e.time||'Dia todo'}${e.note?' · '+esc(e.note):''}</div></div></div>`}
 
 const PAL=['#00F0FF','#3B82F6','#1E9BFF','#9D33FF','#D56EF5','#FF33A1','#5FD0FF','#8F9AC5'];
-function donut(cats,o){let a=0;const st=cats.map(([c,t],k)=>{const s=a;a+=t/o*100;return`${PAL[k%8]} ${s}% ${a}%`}).join(',');
- return`<div style="display:flex;gap:16px;align-items:center"><div style="width:124px;height:124px;border-radius:50%;background:conic-gradient(${st});display:grid;place-items:center;flex:none"><div class="mu" style="width:78px;height:78px;border-radius:50%;background:var(--sf);display:grid;place-items:center;text-align:center">Saídas<br>do mês</div></div><div style="flex:1;min-width:0">${cats.map(([c,t],k)=>`<div style="display:flex;align-items:center;gap:8px;font-size:14px;margin:5px 0"><i style="width:10px;height:10px;border-radius:50%;border:2px solid ${PAL[k%8]};flex:none"></i><span style="flex:1">${c}</span><span class="mu">${Math.round(t/o*100)}%</span></div>`).join('')}</div></div>`}
+function donut(cats,o){
+ let a=0;
+ const st=cats.map(([c,t],k)=>{const s=a;a+=t/o*100;return`${PAL[k%8]} ${s}% ${a}%`}).join(',');
+ return`<div style="display:flex;gap:20px;align-items:center"><div style="width:130px;height:130px;border-radius:50%;background:conic-gradient(${st});position:relative;display:grid;place-items:center;flex:none;box-shadow:0 0 30px rgba(0,0,0,0.3)">
+  <div style="width:90px;height:90px;border-radius:50%;background:var(--bg);display:grid;place-items:center;text-align:center;font-size:12px;color:var(--mut)">Saídas<br><b style="color:var(--ink);font-size:14px">${BRL.format(o)}</b></div>
+ </div><div style="flex:1;min-width:0">${cats.map(([c,t],k)=>`<div style="display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0"><i style="width:12px;height:12px;border-radius:4px;background:${PAL[k%8]};flex:none;box-shadow:0 0 10px ${PAL[k%8]}80"></i><span style="flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden">${c}</span><span style="font-weight:600">${Math.round(t/o*100)}%</span></div>`).join('')}</div></div>`}
 function lineChart(ch,mx){
  const X=i=>20+i*52,Y=v=>120-v/mx*100,pi=ch.map((m,i)=>[X(i),Y(m.in)]),po=ch.map((m,i)=>[X(i),Y(m.out)]);
  const sp=p=>p.reduce((d,q,i)=>i?d+` C${(p[i-1][0]+q[0])/2},${p[i-1][1]} ${(p[i-1][0]+q[0])/2},${q[1]} ${q[0]},${q[1]}`:`M${q[0]},${q[1]}`,'');
