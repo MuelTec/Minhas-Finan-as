@@ -691,6 +691,15 @@ if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova)
 if(syncCfg())autoSync();
 // Bloqueio por PIN: pede o PIN logo na abertura (se ativado neste aparelho)
 if(lockCfg())lockShow();
+
+// Pull-to-refresh
+let touchStartY = 0;
+document.addEventListener('touchstart', e => touchStartY = e.touches[0].clientY);
+document.addEventListener('touchend', e => {
+  if (window.scrollY === 0 && e.changedTouches[0].clientY - touchStartY > 100) {
+    if(syncCfg()){syncNowUI();alert('Atualizando dados...');}
+  }
+});
 </script>
 </body>
 </html>
