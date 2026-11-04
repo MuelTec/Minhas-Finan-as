@@ -70,8 +70,24 @@ input,select,textarea{width:100%;font:inherit;color:var(--ink);background:rgba(8
 .pk button{flex:1;aspect-ratio:1.586;border-radius:14px;border:3px solid transparent;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
 .pk button.on{border-color:var(--ac);box-shadow:0 0 15px rgba(0,240,255,0.3)}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
-@keyframes spinIn{from{transform:rotate(-90deg) scale(0.8);opacity:0}to{transform:rotate(0deg) scale(1);opacity:1}}
-.donut-wrap{animation:spinIn 0.8s cubic-bezier(0.16,1,0.3,1) forwards}
+/* --- Rosquinha minimalista: anel fino, pontas arredondadas, traço que se desenha --- */
+@keyframes dsegIn{from{stroke-dasharray:0 var(--c)}to{stroke-dasharray:var(--l) var(--c)}}
+@keyframes dsegFade{from{opacity:0}to{opacity:1}}
+@keyframes dctrIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes dlIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.drow{display:flex;gap:22px;align-items:center}
+.dwrap{position:relative;width:152px;height:152px;flex:none}
+.dsvg{display:block;width:100%;height:100%;filter:drop-shadow(0 0 18px rgba(0,240,255,.10))}
+.dctr{position:absolute;inset:0;display:grid;place-content:center;text-align:center;animation:dctrIn .7s cubic-bezier(.22,1,.36,1) .45s both}
+.dctr span{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.dctr b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;margin-top:3px}
+.dlegend{flex:1;min-width:0}
+.dl{display:flex;align-items:center;gap:9px;font-size:14px;margin:7px 0;animation:dlIn .5s cubic-bezier(.22,1,.36,1) both}
+.dl i{width:9px;height:9px;border-radius:50%;flex:none;opacity:.92}
+.dl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl b{color:var(--mut);font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+.dseg{animation:dsegIn .9s cubic-bezier(.22,1,.36,1) both,dsegFade .3s ease-out both;animation-delay:var(--d),var(--d)}
+@media (prefers-reduced-motion:reduce){.dseg,.dctr,.dl{animation:none}}
 </style>
 </head>
 <body>
@@ -612,13 +628,23 @@ const upcoming=()=>S.ev.filter(e=>!e.done&&e.date>=today()).sort((a,b)=>(a.date+
 function evRow(e){const p=P(e.date);
  return`<div class="r ${e.done?'dn':''}"><input type="checkbox" aria-label="Concluído" ${e.done?'checked':''} onchange="toggleEv(${e.id},this.checked)"><div class="dt"><b>${p.d}</b><span>${MN[p.m].slice(0,3)}</span></div><div class="t" onclick="evSheet(${e.id})"><div>${esc(e.title)}</div><div class="mu">${e.time||'Dia todo'}${e.note?' · '+esc(e.note):''}</div></div></div>`}
 
-const PAL=['#00F0FF','#3B82F6','#1E9BFF','#9D33FF','#D56EF5','#FF33A1','#5FD0FF','#8F9AC5'];
+const PAL=['#22D3EE','#3B82F6','#6366F1','#A855F7','#EC4899','#F43F5E','#F59E0B','#14B8A6'];
 function donut(cats,o){
- let a=0;
- const st=cats.map(([c,t],k)=>{const s=a;a+=t/o*100;return`${PAL[k%8]} ${s}% ${a}%`}).join(',');
- return`<div style="display:flex;gap:20px;align-items:center"><div class="donut-wrap" style="width:130px;height:130px;border-radius:50%;background:conic-gradient(${st});position:relative;display:grid;place-items:center;flex:none;box-shadow:0 0 35px rgba(0,240,255,0.15)">
-  <div style="width:110px;height:110px;border-radius:50%;background:var(--bg);display:grid;place-items:center;text-align:center;font-size:11px;color:var(--mut);box-shadow:inset 0 4px 10px rgba(0,0,0,0.5)">Saídas<br><b style="color:var(--ink);font-size:15px">${BRL.format(o)}</b></div>
- </div><div style="flex:1;min-width:0">${cats.map(([c,t],k)=>`<div style="display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0"><i style="width:10px;height:10px;border-radius:3px;background:${PAL[k%8]};flex:none;box-shadow:0 0 10px ${PAL[k%8]}80"></i><span style="flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden">${c}</span><span style="font-weight:600">${Math.round(t/o*100)}%</span></div>`).join('')}</div></div>`}
+ const R=56,SW=10,C=2*Math.PI*R,GAP=7;
+ let acc=0;
+ const segs=cats.map(([c,t],k)=>{
+  const len=t/o*C,s=acc;acc+=len;
+  let L=Math.max(4,len-GAP);
+  if(s+L>C)L=Math.max(4,C-s);
+  return`<circle class="dseg" cx="70" cy="70" r="${R}" fill="none" stroke="${PAL[k%8]}" stroke-width="${SW}" stroke-linecap="round" stroke-dasharray="${L.toFixed(2)} ${(C-L).toFixed(2)}" stroke-dashoffset="${(-(s+GAP/2)).toFixed(2)}" style="--l:${L.toFixed(2)};--c:${C.toFixed(2)};--d:${(k*0.08).toFixed(2)}s"></circle>`;
+ }).join('');
+ return`<div class="drow"><div class="dwrap">
+  <svg class="dsvg" viewBox="0 0 140 140" role="img" aria-label="Saídas por categoria">
+   <circle cx="70" cy="70" r="${R}" fill="none" stroke="rgba(255,255,255,.055)" stroke-width="${SW}"></circle>
+   <g transform="rotate(-90 70 70)">${segs}</g>
+  </svg>
+  <div class="dctr"><span>Saídas</span><b>${BRL.format(o)}</b></div>
+ </div><div class="dlegend">${cats.map(([c,t],k)=>`<div class="dl" style="animation-delay:${(0.35+k*0.06).toFixed(2)}s"><i style="background:${PAL[k%8]}"></i><span>${c}</span><b>${Math.round(t/o*100)}%</b></div>`).join('')}</div></div>`}
 function lineChart(ch,mx){
  const X=i=>20+i*52,Y=v=>120-v/mx*100,pi=ch.map((m,i)=>[X(i),Y(m.in)]),po=ch.map((m,i)=>[X(i),Y(m.out)]);
  const sp=p=>p.reduce((d,q,i)=>i?d+` C${(p[i-1][0]+q[0])/2},${p[i-1][1]} ${(p[i-1][0]+q[0])/2},${q[1]} ${q[0]},${q[1]}`:`M${q[0]},${q[1]}`,'');
