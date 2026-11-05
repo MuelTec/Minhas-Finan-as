@@ -512,7 +512,7 @@ async function restoreVer(i){
 }
 
 const MN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-const CATS=['Alimentação','Transporte','Moradia','Lazer','Saúde','Compras','Salário','Emprestado','Outros'];
+const CATS=['Alimentação','Transporte','Moradia','Lazer','Saúde','Compras','Salário','Emprestado','Cartão','Outros'];
 const BRANDS={neon:{n:'Neon',bg:'linear-gradient(135deg,#00E5E5,#0077B6)',fg:'#04202A'},picpay:{n:'PicPay',bg:'linear-gradient(135deg,#21C25E,#0B8A45)',fg:'#fff'},mp:{n:'Mercado Pago',bg:'linear-gradient(135deg,#00A8EA,#0069A8)',fg:'#fff'}};
 const BRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -584,6 +584,7 @@ function parseNotif(txt){
  if(type=='in')cat=/salár|holerite|folha|funcionári/.test(low)?'Salário':'Outros';
  else{const cg=[['Alimentação',['mercado','supermerc','restaur','lanche','padaria','ifood','rappi','pão','carne','feira','pizza','burguer','café','açúcar']],['Transporte',['uber','99app','posto','combust','gasolina','ônibus','onibus','metrô','metro','taxi','estacion','pedágio','ipva']],['Moradia',['aluguel','condomínio','condominio','energia','internet','iptu','imóvel','imovel']],['Lazer',['netflix','spotify','cinema','jogo','steam','bar','show','viagem','disney']],['Saúde',['farmácia','farmacia','drogaria','hospital','médic','medic','plano de saúde','academia']],['Compras',['loja','magazine','amazon','shopee','aliexpress','roupa','tênis','tenis','eletrônic','celular','mercado livre']]];
   for(const[c,ws]of cg)if(ws.some(w=>low.includes(w))){cat=c;break}}
+ if(type=='out'&&/fatura/.test(low)&&/pag|liquid|quit/.test(low))cat='Cartão';
  let name='';
  const parts=t.split(/\s+[-–—]\s+/).map(s=>s.trim()).filter(s=>s&&!/R\$|^\s*[\d.]+,\d{2}\s*$/.test(s)&&!/^(hoje|ontem)$/i.test(s));
  const bp=/^(compra|pagament|pix|saque|recebim|crédit|credit|débito|debito|boleto|fatura|transfer|estorno|aprovad|cartão|valores?|você)/i;
@@ -720,10 +721,26 @@ function txTab(){
  const l=monthTx();
  return mbar()+`<button class="b p w" onclick="txSheet()">${ico('add-outline',18)} Novo lançamento</button><button class="b w" style="margin-top:8px" onclick="importNotif()">${ico('notifications-outline',18)} Importar notificação de banco</button>${notifStatus()}<div class="cd" style="margin-top:12px">${l.length?l.map(x=>`<div class="r" onclick="txSheet(${x.id})"><div class="t"><div>${esc(x.name)}</div><div class="mu">${x.cat} · ${fd(new Date(x.date+'T12:00'))}</div></div><div class="v ${x.type}">${x.type=='in'?'+':'−'} ${BRL.format(x.amt)}</div></div>`).join(''):'<div class="em">Sem lançamentos neste mês. Toque em “Novo lançamento”.</div>'}</div>`;
 }
+// --- Pagamento da fatura: confirma e lança a saída na categoria "Cartão" (1 lançamento por cartão/mês) ---
+const payRef=(cid,i)=>'fat:'+cid+':'+i;
+function payInvoice(cid){
+ const c=cardOf(cid),ref=payRef(cid,cur),ex=S.tx.find(x=>x.ref===ref);
+ if(ex){
+  if(confirm('Desfazer o pagamento da fatura '+BRANDS[c.brand].n+' ('+mlabel(cur)+')?\n\nO lançamento de saída será removido.')){S.tx=S.tx.filter(x=>x.ref!==ref);save();render()}
+  return;
+ }
+ const inv=invoice(cur,cid);if(!(inv.t>0))return;
+ if(!confirm('Confirmar o pagamento da fatura '+BRANDS[c.brand].n+' de '+MN[cur%12]+'?\n\n'+BRL.format(inv.t)+' vai como saída na categoria “Cartão”.'))
+  return;
+ const d0=ix(today())===cur?today():(()=>{const d=dd(cur,Math.min(c.due,dim(cur)));return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)})();
+ S.tx.push({id:Date.now(),type:'out',name:'Pagamento fatura '+BRANDS[c.brand].n,amt:inv.t,cat:'Cartão',date:d0,ref});
+ save();render();
+}
 function cardTab(){
- const c=cardOf(cc);if(!c)return mbar()+'<h1>Cartões</h1><div class="cd"><div class="em">Escolha entre Neon, PicPay e Mercado Pago para começar.</div></div><button class="b p w" onclick="cardSheet()">'+ico('add-outline',18)+' Adicionar cartão</button>';const inv=invoice(cur,c.id),run=S.buys.filter(b=>b.cid==c.id&&b.n>1&&first(b)+b.n-1>=cur).sort((a,b)=>(first(a)+a.n)-(first(b)+b.n));
+ const c=cardOf(cc);if(!c)return mbar()+'<h1>Cartões</h1><div class="cd"><div class="em">Escolha entre Neon, PicPay e Mercado Pago para começar.</div></div><button class="b p w" onclick="cardSheet()">'+ico('add-outline',18)+' Adicionar cartão</button>';const inv=invoice(cur,c.id),run=S.buys.filter(b=>b.cid==c.id&&b.n>1&&first(b)+b.n-1>=cur).sort((a,b)=>(first(a)+a.n)-(first(b)+b.n));const paid=!!S.tx.find(x=>x.ref===payRef(c.id,cur));
  return mbar()+`<div class="cs">${S.cards.map(x=>`<button class="${x.id==c.id?'on':''}" style="background:${BRANDS[x.brand].bg};color:${BRANDS[x.brand].fg}" onclick="cc=${x.id};render()">${BRANDS[x.brand].n.split(' ')[0]}</button>`).join('')}<button onclick="cardSheet()" style="background:var(--sf);color:var(--ink);border:1px dashed var(--mut)">${ico('add-outline',13)} Cartão</button></div>
- <div class="cc" style="background:${BRANDS[c.brand].bg};color:${BRANDS[c.brand].fg}" onclick="cardSheet(${c.id})"><div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="bn">${BRANDS[c.brand].n}</span><span style="font-size:12px;opacity:.8">toque para editar</span></div><div class="ch"></div><div class="ft"><div>Fatura de ${MN[cur%12]}<b>${BRL.format(inv.t)}</b></div><div style="text-align:right">Fecha ${fd(closeD(cur,c))}<br>Vence ${fd(dueD(cur,c))}</div></div></div>
+ <div class="cc" style="background:${BRANDS[c.brand].bg};color:${BRANDS[c.brand].fg}" onclick="cardSheet(${c.id})"><div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="bn">${BRANDS[c.brand].n}</span><span style="font-size:12px;opacity:.8">toque para editar</span></div><div class="ch"></div><div class="ft"><div>Fatura de ${MN[cur%12]}${paid?'<span style="font-weight:700"> · paga</span>':''}<b>${BRL.format(inv.t)}</b></div><div style="text-align:right">Fecha ${fd(closeD(cur,c))}<br>Vence ${fd(dueD(cur,c))}</div></div></div>
+ ${inv.t>0?(paid?`<button class="b w" style="margin-bottom:12px;color:var(--ok)" onclick="payInvoice(${c.id})">${ico('checkmark-outline',18)} Fatura paga · toque para desfazer</button>`:`<button class="b p w" style="margin-bottom:12px" onclick="payInvoice(${c.id})">${ico('checkmark-outline',18)} Confirmar pagamento · ${BRL.format(inv.t)}</button>`):''}
  ${c.limit>0?(()=>{const u=used(c),r=c.limit-u;return`<div class="cd"><div style="display:flex;justify-content:space-between"><span>Limite disponível</span><b class="${r>=0?'in':'out'}">${BRL.format(r)}</b></div><div class="bar" style="margin:8px 0"><i style="width:${Math.min(100,u/c.limit*100)}%;background:${u/c.limit>.8?'var(--ex)':'var(--ok)'}"></i></div><div class="mu">Usado ${BRL.format(u)} de ${BRL.format(c.limit)}</div></div>`})():'<div class="cd"><div class="em">Toque no cartão para definir o limite.</div></div>'}
  
  <button class="b p w" onclick="buySheet()">${ico('add-outline',18)} Nova compra no cartão</button>
