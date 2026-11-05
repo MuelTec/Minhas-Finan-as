@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preview — Tema GTA VI (cristal iPhone) · Minhas Finanças</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0A0611;color:#F6F1FB;font:15px/1.5 -apple-system,"SF Pro Display","SF Pro Text",system-ui,"Segoe UI",sans-serif;padding:36px 24px 70px}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 0%,rgba(255,46,139,.20),transparent 42%),radial-gradient(circle at 88% 100%,rgba(255,122,47,.18),transparent 45%),radial-gradient(circle at 60% 45%,rgba(139,92,246,.12),transparent 55%)}
+.wrap{position:relative;max-width:1320px;margin:0 auto}
+h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em;background:linear-gradient(135deg,#FF2E8B,#FF7A2F 60%,#FFD338);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:rgba(246,241,251,.62);margin:0 0 26px;max-width:900px}
+.legendbar{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 30px}
+.legendbar span{font-size:12.5px;color:rgba(246,241,251,.72);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 13px;backdrop-filter:blur(14px)}
+.legendbar i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+.stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+figure{margin:0;text-align:center}
+figcaption{margin-top:14px;font-size:13px;color:rgba(246,241,251,.6)}
+h2{font-size:17px;margin:52px 0 16px;letter-spacing:-.01em}
+h2 small{display:block;font-weight:400;font-size:13px;color:rgba(246,241,251,.55);margin-top:3px}
+
+/* ---------- iPhone ---------- */
+.phone{width:390px;height:844px;border-radius:58px;padding:11px;background:linear-gradient(155deg,#4a4a54,#111116 45%,#2a2a31);box-shadow:0 44px 90px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.09);flex:none;position:relative}
+.screen{position:relative;width:100%;height:100%;border-radius:47px;overflow:hidden;display:flex;flex-direction:column;text-align:left}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:114px;height:34px;background:#000;border-radius:19px;z-index:9}
+.homebar{width:134px;height:5px;border-radius:3px;margin:7px auto 7px}
+
+/* ---------- Tema cristal ---------- */
+.screen.dark{--bg1:#1B0B30;--ink:#FFF7FC;--mut:rgba(255,240,250,.62);--ln:rgba(255,255,255,.14);--card:rgba(255,255,255,.075);--cardHi:rgba(255,255,255,.20);--tint:rgba(255,255,255,.09);--ac:#FF4D9E;--ind:rgba(255,255,255,.4);
+ background:radial-gradient(circle at 15% 4%,rgba(255,46,139,.42),transparent 46%),radial-gradient(circle at 92% 96%,rgba(255,122,47,.34),transparent 48%),radial-gradient(circle at 65% 55%,rgba(139,92,246,.20),transparent 55%),#1B0B30;color:var(--ink)}
+.screen.light{--bg1:#F8F3FC;--ink:#221033;--mut:#7C6B90;--ln:rgba(30,10,50,.10);--card:rgba(255,255,255,.74);--cardHi:rgba(255,255,255,.95);--tint:rgba(30,10,50,.05);--ac:#F0247E;--ind:rgba(20,8,35,.35);
+ background:radial-gradient(circle at 12% 3%,rgba(255,46,139,.16),transparent 46%),radial-gradient(circle at 92% 97%,rgba(255,122,47,.16),transparent 48%),radial-gradient(circle at 70% 60%,rgba(139,92,246,.10),transparent 55%),#F8F3FC;color:var(--ink)}
+.grad{background:linear-gradient(135deg,#FF2E8B,#FF7A2F 62%,#FFC33A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.gradbg{background:linear-gradient(135deg,#FF2E8B,#FF7A2F 62%,#FFC33A)}
+
+/* barra de status */
+.sb{height:52px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 5px;font-size:15px;font-weight:600;letter-spacing:.02em}
+.sb .ic{display:flex;gap:6px;align-items:center}
+
+/* navegação do mês */
+.mnav{flex:none;display:flex;align-items:center;justify-content:space-between;padding:5px 16px 1px}
+.mnav b{font-size:16px;font-weight:650;letter-spacing:-.01em}
+.mbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--ln);background:var(--card);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);display:grid;place-items:center;color:var(--ink);box-shadow:inset 0 1px 0 var(--cardHi)}
+.body{flex:1;overflow:hidden;padding:0 18px}
+h1.title{font-size:25px;line-height:1.15;font-weight:700;letter-spacing:-.025em;margin:6px 0 12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:10px}
+.gc{border-radius:22px;padding:13px 14px;color:#fff;position:relative;overflow:hidden;box-shadow:0 14px 34px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.22)}
+.gc:after{content:"";position:absolute;right:-26px;top:-38px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.18)}
+.gc small{font-size:13px;opacity:.92;position:relative;z-index:1}
+.gc b{display:block;font-size:20px;margin-top:3px;font-weight:700;letter-spacing:-.02em;position:relative;z-index:1}
+.gc.in{background:linear-gradient(135deg,#2ED3C6,#4C7DFF)}
+.gc.out{background:linear-gradient(135deg,#FF2E8B,#FF7A2F)}
+
+/* cartão de vidro */
+.cd{background:var(--card);border:1px solid var(--ln);border-radius:22px;padding:14px 15px;margin-bottom:11px;backdrop-filter:blur(26px) saturate(170%);-webkit-backdrop-filter:blur(26px) saturate(170%);box-shadow:0 16px 40px rgba(0,0,0,.26),inset 0 1px 0 var(--cardHi);position:relative}
+.cd:before{content:"";position:absolute;inset:0;border-radius:22px;background:linear-gradient(160deg,rgba(255,255,255,.10),transparent 42%);pointer-events:none}
+.mu{color:var(--mut);font-size:13px}
+.big{font-size:25px;font-weight:700;letter-spacing:-.02em;display:block;margin:3px 0 6px}
+.frow{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:4px 0}
+.frow i{font-style:normal;color:var(--mut);font-size:12.5px}
+.frow b{font-weight:650}
+h3{font-size:14px;font-weight:650;margin:10px 0 6px;letter-spacing:-.01em}
+.r{display:flex;align-items:center;gap:11px;padding:8px 0;border-top:1px solid var(--ln);font-size:14.5px}
+.r:first-of-type{border-top:0}
+.r .t{flex:1;min-width:0}
+.r .t b{font-weight:600;display:block}
+.r .t span{color:var(--mut);font-size:12.5px}
+.r .v{font-weight:650;white-space:nowrap}
+
+/* rosquinha (igual à do app) */
+@keyframes dsegIn{from{stroke-dasharray:0 var(--c)}to{stroke-dasharray:var(--l) var(--c)}}
+@keyframes dsegFade{from{opacity:0}to{opacity:1}}
+@keyframes dctrIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes dlIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.drow{display:flex;gap:18px;align-items:center}
+.dwrap{position:relative;width:136px;height:136px;flex:none}
+.dsvg{display:block;width:100%;height:100%;filter:drop-shadow(0 0 16px rgba(255,46,139,.18))}
+.dctr{position:absolute;inset:0;display:grid;place-content:center;text-align:center;animation:dctrIn .7s cubic-bezier(.22,1,.36,1) .45s both}
+.dctr span{display:block;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.dctr b{display:block;font-size:16px;font-weight:700;letter-spacing:-.02em;margin-top:3px}
+.dlegend{flex:1;min-width:0}
+.dl{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;animation:dlIn .5s cubic-bezier(.22,1,.36,1) both}
+.dl i{width:9px;height:9px;border-radius:50%;flex:none;opacity:.95}
+.dl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl b{color:var(--mut);font-weight:600;font-size:12.5px;font-variant-numeric:tabular-nums}
+.dseg{animation:dsegIn .9s cubic-bezier(.22,1,.36,1) both,dsegFade .3s ease-out both;animation-delay:var(--d),var(--d)}
+
+/* botões */
+.btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;border-radius:17px;padding:13px 16px;font:inherit;font-size:15px;font-weight:650;letter-spacing:-.01em;margin-bottom:10px;border:1px solid var(--ln);background:var(--card);color:var(--ink);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 26px rgba(0,0,0,.20),inset 0 1px 0 var(--cardHi)}
+.btn.p{background:linear-gradient(135deg,#FF2E8B,#FF7A2F 62%,#FFC33A);color:#3B0A1E;border-color:transparent;box-shadow:0 12px 30px rgba(255,80,120,.35),inset 0 1px 0 rgba(255,255,255,.5)}
+
+/* tab bar */
+.tabbar{flex:none;display:flex;background:var(--card);border-top:1px solid var(--ln);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.tab{flex:1;border:0;background:none;padding:8px 0 3px;display:flex;flex-direction:column;align-items:center;gap:3px;font:inherit;font-size:10.5px;color:var(--mut);cursor:pointer;letter-spacing:-.005em}
+.tab.on{font-weight:650}
+.tab.on .lbl{background:linear-gradient(135deg,#FF2E8B,#FF7A2F 62%,#FFC33A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tab.on .ic{color:#FF4D9E}
+.tab.on .ic path,.tab.on .ic rect{stroke:url(#gtaGrad)}
+.tab.on .ic circle{fill:url(#gtaGrad)}
+.tab .ic{display:block}
+
+/* kit */
+.kit{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:18px;backdrop-filter:blur(20px)}
+.kit div{display:flex;flex-direction:column;align-items:center;gap:7px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:13px 6px;color:#FFE9F3}
+.kit span{font-size:10.5px;color:rgba(246,241,251,.55);text-align:center;word-break:break-word}
+.btnrow{display:flex;flex-wrap:wrap;gap:11px}
+.btnrow .btn{width:auto;margin:0;min-width:210px}
+@media (prefers-reduced-motion:reduce){.dseg,.dctr,.dl{animation:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="gtaGrad" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#FF2E8B"/><stop offset=".62" stop-color="#FF7A2F"/><stop offset="1" stop-color="#FFC33A"/>
+</linearGradient></defs></svg>
+
+<div class="wrap">
+<h1>Minhas Finanças — tema “GTA VI” (cristal / transparente)</h1>
+<p class="sub">Visual inspirado na paleta do GTA VI (rosa neon → laranja → amarelo, roxo e aqua de pôr do sol), <b>sem nenhuma marca ou logo da Rockstar</b>. Ícones Ionicons outline — os mesmos usados no seu repositório <b>Casinhas</b> — com acabamento de cristal do iPhone (vidro fosco, transparência e blur).</p>
+<div class="legendbar">
+<span><i style="background:#FF2E8B"></i>Rosa neon</span>
+<span><i style="background:#FF7A2F"></i>Laranja</span>
+<span><i style="background:#FFD338"></i>Amarelo</span>
+<span><i style="background:#8B5CF6"></i>Roxo</span>
+<span><i style="background:#2ED3C6"></i>Aqua</span>
+<span>Ícones: Ionicons outline (Casinhas)</span>
+</div>
+
+<div class="stage">
+<figure>
+ <div class="phone"><div class="screen dark" id="s1"><div class="island"></div></div></div>
+ <figcaption>1 · Resumo — cristal escuro (padrão)</figcaption>
+</figure>
+<figure>
+ <div class="phone"><div class="screen light" id="s2"><div class="island"></div></div></div>
+ <figcaption>2 · Resumo — cristal claro</figcaption>
+</figure>
+<figure>
+ <div class="phone"><div class="screen dark" id="s3"><div class="island"></div></div></div>
+ <figcaption>3 · Lançamentos — botões com ícones</figcaption>
+</figure>
+</div>
+
+<h2>Barra de abas com ícones <small>Mesmos ícones do Casinhas (Ionicons outline): Resumo, Histórico, Lançamentos, Cartão, Agenda</small></h2>
+<div class="stage" id="tabbars"></div>
+
+<h2>Botões e ações <small>Ícones Ionicons no lugar dos emojis, em vidro translúcido</small></h2>
+<div class="btnrow" id="btns"></div>
+
+<h2>Kit de ícones <small>Usados na navegação, botões e folhas de edição</small></h2>
+<div class="kit" id="kit"></div>
+</div>
+
+<script>
+const ICONS={
+'pie-chart-outline':'<path d="M256.05 80.65Q263.94 80 272 80c106 0 192 86 192 192s-86 192-192 192A192.09 192.09 0 0189.12 330.65" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32"/><path d="M256 48C141.12 48 48 141.12 48 256a207.29 207.29 0 0018.09 85L256 256z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'time-outline':'<path d="M256 64C150 64 64 150 64 256s86 192 192 192 192-86 192-192S362 64 256 64z" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M256 128v144h96"/>',
+'cash-outline':'<rect x="32" y="80" width="448" height="256" rx="16" ry="16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M64 384h384M96 432h320"/><circle cx="256" cy="208" r="80" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M480 160a80 80 0 01-80-80M32 160a80 80 0 0080-80M480 256a80 80 0 00-80 80M32 256a80 80 0 0180 80" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'card-outline':'<rect x="48" y="96" width="416" height="320" rx="56" ry="56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="60" d="M48 192h416M128 300h48v20h-48z"/>',
+'calendar-outline':'<rect fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32" x="48" y="80" width="416" height="384" rx="48"/><circle cx="296" cy="232" r="24"/><circle cx="376" cy="232" r="24"/><circle cx="296" cy="312" r="24"/><circle cx="376" cy="312" r="24"/><circle cx="136" cy="312" r="24"/><circle cx="216" cy="312" r="24"/><circle cx="136" cy="392" r="24"/><circle cx="216" cy="392" r="24"/><circle cx="296" cy="392" r="24"/><path fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32" stroke-linecap="round" d="M128 48v32M384 48v32"/><path fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32" d="M464 160H48"/>',
+'add-outline':'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M256 112v288M400 256H112"/>',
+'notifications-outline':'<path d="M427.68 351.43C402 320 383.87 304 383.87 217.35 383.87 138 343.35 109.73 310 96c-4.43-1.82-8.6-6-9.95-10.55C294.2 65.54 277.8 48 256 48s-38.21 17.55-44 37.47c-1.35 4.6-5.52 8.71-9.95 10.53-33.39 13.75-73.87 41.92-73.87 121.35C128.13 304 110 320 84.32 351.43 73.68 364.45 83 384 101.61 384h308.88c18.51 0 27.77-19.61 17.19-32.57zM320 384v16a64 64 0 01-128 0v-16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'cloud-download-outline':'<path d="M320 336h76c55 0 100-21.21 100-75.6s-53-73.47-96-75.6C391.11 99.74 329 48 256 48c-69 0-113.44 45.79-128 91.2-60 5.7-112 35.88-112 98.4S70 336 136 336h56M192 400.1l64 63.9 64-63.9M256 224v224.03" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'cloud-upload-outline':'<path d="M320 367.79h76c55 0 100-29.21 100-83.6s-53-81.47-96-83.6c-8.89-85.06-71-136.8-144-136.8-69 0-113.44 45.79-128 91.2-60 5.7-112 43.88-112 106.4s54 106.4 120 106.4h56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M320 255.79l-64-64-64 64M256 448.21V207.79"/>',
+'wallet-outline':'<rect x="48" y="144" width="416" height="288" rx="48" ry="48" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"/><path d="M411.36 144v-30A50 50 0 00352 64.9L88.64 109.85A50 50 0 0048 159v49" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"/><path d="M368 320a32 32 0 1132-32 32 32 0 01-32 32z"/>',
+'lock-closed-outline':'<path d="M336 208v-95a80 80 0 00-160 0v95" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><rect x="96" y="208" width="320" height="272" rx="48" ry="48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'sync-outline':'<path d="M434.67 285.59v-29.8c0-98.73-80.24-178.79-179.2-178.79a179 179 0 00-140.14 67.36m-38.53 82v29.8C76.8 355 157 435 256 435a180.45 180.45 0 00140-66.92" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M32 256l44-44 46 44M480 256l-44 44-46-44"/>',
+'close-outline':'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M368 368L144 144M368 144L144 368"/>',
+'checkmark-outline':'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M416 128L192 384l-96-96"/>',
+'trash-outline':'<path d="M112 112l20 320c.95 18.49 14.4 32 32 32h184c17.67 0 30.87-13.51 32-32l20-320" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32" d="M80 112h352"/><path d="M192 112V72h0a23.93 23.93 0 0124-24h80a23.93 23.93 0 0124 24h0v40M256 176v224M184 176l8 224M328 176l-8 224" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'chevron-back':'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="48" d="M328 112L184 256l144 144"/>',
+'chevron-forward':'<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="48" d="M184 112l144 144-144 144"/>',
+'create-outline':'<path d="M384 224v184a40 40 0 01-40 40H104a40 40 0 01-40-40V168a40 40 0 0140-40h167.48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M459.94 53.25a16.06 16.06 0 00-23.22-.56L424.35 65a8 8 0 000 11.31l11.34 11.32a8 8 0 0011.34 0l12.06-12c6.1-6.09 6.67-16.01.85-22.38zM399.34 90L218.82 270.2a9 9 0 00-2.31 3.93L208.16 299a3.91 3.91 0 004.86 4.86l24.85-8.35a9 9 0 003.93-2.31L422 112.66a9 9 0 000-12.66l-9.95-10a9 9 0 00-12.71 0z"/>',
+'document-text-outline':'<path d="M416 221.25V416a48 48 0 01-48 48H144a48 48 0 01-48-48V96a48 48 0 0148-48h98.75a32 32 0 0122.62 9.37l141.26 141.26a32 32 0 019.37 22.62z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"/><path d="M256 56v120a32 32 0 0032 32h120M176 288h160M176 368h160" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'settings-outline':'<path d="M262.29 192.31a64 64 0 1057.4 57.4 64.13 64.13 0 00-57.4-57.4zM416.39 256a154.34 154.34 0 01-1.53 20.79l45.21 35.46a10.81 10.81 0 012.45 13.75l-42.77 74a10.81 10.81 0 01-13.14 4.59l-44.9-18.08a16.11 16.11 0 00-15.17 1.75A164.48 164.48 0 01325 400.8a15.94 15.94 0 00-8.82 12.14l-6.73 47.89a11.08 11.08 0 01-10.68 9.17h-85.54a11.11 11.11 0 01-10.69-8.87l-6.72-47.82a16.07 16.07 0 00-9-12.22 155.3 155.3 0 01-21.46-12.57 16 16 0 00-15.11-1.71l-44.89 18.07a10.81 10.81 0 01-13.14-4.58l-42.77-74a10.8 10.8 0 012.45-13.75l38.21-30a16.05 16.05 0 006-14.08c-.36-4.17-.58-8.33-.58-12.5s.21-8.27.58-12.35a16 16 0 00-6.07-13.94l-38.19-30A10.81 10.81 0 0149.48 186l42.77-74a10.81 10.81 0 0113.14-4.59l44.9 18.08a16.11 16.11 0 0015.17-1.75A164.48 164.48 0 01187 111.2a15.94 15.94 0 008.82-12.14l6.73-47.89A11.08 11.08 0 01213.23 42h85.54a11.11 11.11 0 0110.69 8.87l6.72 47.82a16.07 16.07 0 009 12.22 155.3 155.3 0 0121.46 12.57 16 16 0 0015.11 1.71l44.89-18.07a10.81 10.81 0 0113.14 4.58l42.77 74a10.8 10.8 0 01-2.45 13.75l-38.21 30a16.05 16.05 0 00-6.05 14.08c.33 4.14.55 8.3.55 12.47z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'share-outline':'<path d="M336 192h40a40 40 0 0140 40v192a40 40 0 01-40 40H136a40 40 0 01-40-40V232a40 40 0 0140-40h40M336 128l-80-80-80 80M256 321V48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/>',
+'download-outline':'<path d="M336 176h40a40 40 0 0140 40v208a40 40 0 01-40 40H136a40 40 0 01-40-40V216a40 40 0 0140-40h40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M176 272l80 80 80-80M256 48v288"/>'
+};
+const ico=(n,s=24)=>`<svg class="ic" viewBox="0 0 512 512" width="${s}" height="${s}" fill="currentColor" aria-hidden="true">${ICONS[n]||''}</svg>`;
+
+/* ---------- status bar iOS ---------- */
+const statusbar=`<div class="sb"><span>9:41</span><span class="ic">
+<svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+<svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 11.2 6.1 8.6a3.6 3.6 0 0 1 4.8 0zM3.6 5.9a7.6 7.6 0 0 1 9.8 0l1.5-1.6a9.8 9.8 0 0 0-12.8 0zM.6 2.8a12 12 0 0 1 15.8 0L17.9 1.2a14.2 14.2 0 0 0-18.8 0z"/></svg>
+<svg width="26" height="13" viewBox="0 0 26 13" fill="none"><rect x=".7" y=".7" width="21" height="11.6" rx="3.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="15" height="8.2" rx="2.2" fill="currentColor"/><path d="M23.6 4.3v4.4c1-.4 1.6-1.2 1.6-2.2s-.6-1.8-1.6-2.2" fill="currentColor" fill-opacity=".5"/></svg>
+</span></div>`;
+
+/* ---------- rosquinha ---------- */
+const PAL=['#FF2E8B','#FF7A2F','#A855F7','#2ED3C6','#FFD338','#7C5CFF','#FF5C7A','#C4B5FD'];
+const DATA=[['Moradia',1200],['Alimentação',486.3],['Emprestado',300],['Compras',215.4],['Saúde',138.9],['Transporte',92.5],['Outros',88.7],['Lazer',74]];
+const BRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+function donut(){
+ const o=DATA.reduce((s,x)=>s+x[1],0),R=56,SW=10,C=2*Math.PI*R,GAP=7;let acc=0;
+ const segs=DATA.map(([c,t],k)=>{const len=t/o*C,s=acc;acc+=len;let L=Math.max(4,len-GAP);if(s+L>C)L=Math.max(4,C-s);
+  return`<circle class="dseg" cx="70" cy="70" r="${R}" fill="none" stroke="${PAL[k%8]}" stroke-width="${SW}" stroke-linecap="round" stroke-dasharray="${L.toFixed(2)} ${(C-L).toFixed(2)}" stroke-dashoffset="${(-(s+GAP/2)).toFixed(2)}" style="--l:${L.toFixed(2)};--c:${C.toFixed(2)};--d:${(k*0.08).toFixed(2)}s"></circle>`}).join('');
+ return`<div class="drow"><div class="dwrap">
+  <svg class="dsvg" viewBox="0 0 140 140" role="img" aria-label="Saídas por categoria">
+   <circle cx="70" cy="70" r="${R}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="${SW}"></circle>
+   <g transform="rotate(-90 70 70)">${segs}</g></svg>
+  <div class="dctr"><span>Saídas</span><b>${BRL.format(o)}</b></div></div>
+ <div class="dlegend">${DATA.map(([c,t],k)=>`<div class="dl" style="animation-delay:${(0.35+k*0.06).toFixed(2)}s"><i style="background:${PAL[k%8]}"></i><span>${c}</span><b>${Math.round(t/o*100)}%</b></div>`).join('')}</div></div>`;
+}
+
+/* ---------- abas ---------- */
+const TABS=[['pie-chart-outline','Resumo'],['time-outline','Histórico'],['cash-outline','Lançamentos'],['card-outline','Cartão'],['calendar-outline','Agenda']];
+const tabbar=(on)=>`<nav class="tabbar">${TABS.map(([i,t],k)=>`<button class="tab ${k===on?'on':''}">${ico(i,23)}<span class="lbl">${t}</span></button>`).join('')}</nav><div class="homebar" style="background:var(--ind)"></div>`;
+
+/* ---------- telas ---------- */
+function resumo(){return statusbar+`
+<div class="mnav"><button class="mbtn">${ico('chevron-back',17)}</button><b>novembro de 2026</b><button class="mbtn">${ico('chevron-forward',17)}</button></div>
+<div class="body">
+<h1 class="title">Em novembro, sobraram <span class="grad" style="white-space:nowrap">R$ 1.604,20</span></h1>
+<div class="two"><div class="gc in"><small>Entradas</small><b>R$ 4.200,00</b></div><div class="gc out"><small>Saídas</small><b>R$ 2.595,80</b></div></div>
+<div class="cd"><span class="mu">Total das faturas de novembro</span><b class="big">R$ 812,40</b>
+ <div class="frow"><span>Neon <i>fecha 12/11</i></span><b>R$ 512,40</b></div>
+ <div class="mu" style="border-top:1px solid var(--ln);padding-top:7px">PicPay fecha 15/11 · sobram R$ 791,80 após as faturas</div></div>
+<h3>Para onde foi o dinheiro</h3>
+<div class="cd">${donut()}</div>
+</div>`+tabbar(0);}
+
+function lancamentos(){return statusbar+`
+<div class="mnav"><button class="mbtn">${ico('chevron-back',17)}</button><b>novembro de 2026</b><button class="mbtn">${ico('chevron-forward',17)}</button></div>
+<div class="body">
+<button class="btn p">${ico('add-outline',20)} Novo lançamento</button>
+<button class="btn">${ico('notifications-outline',20)} Importar notificação de banco</button>
+<div class="mu" style="display:flex;align-items:center;justify-content:center;gap:7px;margin:2px 0 12px"><span style="color:#2ED3C6;display:flex">${ico('checkmark-outline',15)}</span> Captura automática ativa</div>
+<div class="cd">
+<div class="r"><div class="t"><b>Salário</b><span>Salário · 05/11</span></div><div class="v" style="color:#2ED3C6">+ R$ 4.200,00</div></div>
+<div class="r"><div class="t"><b>Aluguel</b><span>Moradia · 07/11</span></div><div class="v">− R$ 1.200,00</div></div>
+<div class="r"><div class="t"><b>Mercado</b><span>Alimentação · 06/11</span></div><div class="v">− R$ 486,30</div></div>
+<div class="r"><div class="t"><b>Pix p/ João</b><span>Emprestado · 12/11</span></div><div class="v">− R$ 300,00</div></div>
+<div class="r"><div class="t"><b>Shopee</b><span>Compras · 11/11</span></div><div class="v">− R$ 215,40</div></div>
+<div class="r"><div class="t"><b>Farmácia</b><span>Saúde · 10/11</span></div><div class="v">− R$ 138,90</div></div>
+</div></div>`+tabbar(2);}
+
+document.getElementById('s1').insertAdjacentHTML('beforeend',resumo());
+document.getElementById('s2').insertAdjacentHTML('beforeend',resumo());
+document.getElementById('s3').insertAdjacentHTML('beforeend',lancamentos());
+
+/* barras de abas em destaque */
+document.getElementById('tabbars').innerHTML=
+ `<figure><div style="width:390px;border-radius:26px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45)">${tabbar(0)}</div><figcaption>ativo: Resumo (degradê rosa→laranja)</figcaption></figure>`+
+ `<figure><div style="width:390px;border-radius:26px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45)">${tabbar(3)}</div><figcaption>ativo: Cartão</figcaption></figure>`;
+
+/* botões */
+document.getElementById('btns').innerHTML=[
+ ['add-outline','Novo lançamento',1],['notifications-outline','Importar notificação',0],
+ ['cloud-download-outline','Fazer backup',0],['cloud-upload-outline','Restaurar backup',0],
+ ['wallet-outline','Orçamento por categoria',0],['lock-closed-outline','Ativar bloqueio por PIN',0],
+ ['sync-outline','Sincronizar agora',0],['time-outline','Histórico de versões',0],
+ ['trash-outline','Excluir',0]
+].map(([i,t,p])=>`<button class="btn ${p?'p':''}" style="background:${p?'':'rgba(255,255,255,.07)'};color:${p?'':'#FFE9F3'};border-color:rgba(255,255,255,.14)">${ico(i,20)} ${t}</button>`).join('');
+
+/* kit */
+document.getElementById('kit').innerHTML=Object.keys(ICONS).map(n=>`<div>${ico(n,26)}<span>${n.replace('-outline','')}</span></div>`).join('');
+</script>
+</body>
+</html>
