@@ -220,10 +220,10 @@ const SKEY='fin_sync',GF='minhas-financas.json',GD='Minhas Finanças backup';
 function syncCfg(){try{return JSON.parse(localStorage.getItem(SKEY))}catch(e){return null}}
 function setSyncCfg(c){try{c?localStorage.setItem(SKEY,JSON.stringify(c)):localStorage.removeItem(SKEY)}catch(e){}}
 let syncBusy=false,syncTimer=null;
-function scheduleSync(){if(window.__noAutoSync)return;if((!syncCfg()&&!driveCfg()&&!jsCfg())||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),1200)}
+function scheduleSync(){if(window.__noAutoSync)return;if((!syncCfg()&&!driveCfg()&&!ntCfg())||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),1200)}
 function autoSync(){
  if(window.__noAutoSync)return;
- if(!syncCfg()&&!driveCfg()&&!jsCfg())return;
+ if(!syncCfg()&&!driveCfg()&&!ntCfg())return;
  // Não mexe nos dados enquanto o usuário está com um formulário aberto
  if($('#ov')&&!$('#ov').hidden)return;
  if(syncBusy){clearTimeout(syncTimer);syncTimer=setTimeout(autoSync,1200);return} // entra na fila
@@ -270,9 +270,9 @@ async function syncConnect(tok){
   if(!confirm('A sincronização do Google Drive está ativa.\n\nOK = trocar para GitHub (o Drive é desligado)\nCancelar = manter o Drive'))return'Sincronização já ativa no Google Drive.';
   setDriveCfg(null);dTok=null;dExp=0;
  }
- if(jsCfg()){
+ if(ntCfg()){
   if(!confirm('A Nuvem está ativa.\n\nOK = trocar para GitHub (a Nuvem é desligada)\nCancelar = manter a Nuvem'))return'Sincronização já ativa na Nuvem.';
-  setJsCfg(null);
+  setNtCfg(null);
  }
  const prev=syncCfg();
  setSyncCfg({token:tok,gistId:prev&&prev.gistId?prev.gistId:null,lastSync:0});
@@ -453,9 +453,9 @@ async function driveConnect(){
   if(!confirm('A sincronização do GitHub está ativa.\n\nOK = trocar para o Google Drive (GitHub é desligado)\nCancelar = manter o GitHub'))return'Sincronização já ativa no GitHub.';
   setSyncCfg(null);
  }
- if(jsCfg()){
+ if(ntCfg()){
   if(!confirm('A Nuvem está ativa.\n\nOK = trocar para o Google Drive (a Nuvem é desligada)\nCancelar = manter a Nuvem'))return'Sincronização já ativa na Nuvem.';
-  setJsCfg(null);
+  setNtCfg(null);
  }
  const prev=driveCfg();
  setDriveCfg({clientId:cid,fileId:prev&&prev.clientId===cid?prev.fileId:null,lastSync:prev&&prev.clientId===cid?prev.lastSync:0});
@@ -473,8 +473,10 @@ async function driveConnectUI(){
  alert('Conectado ao Google Drive ✅ Backup automático ligado.');
 }
 function driveDisconnect(){if(confirm('Desconectar o Google Drive? Os dados continuam salvos neste aparelho.')){dTok=null;dExp=0;setDriveCfg(null);render()}}
+function driveSection(){const h=driveHtml();if(!h)return'';return ntCfg()?`<details style="margin-top:12px"><summary class="mu" style="cursor:pointer">Outras formas: Google Drive</summary>${h}</details>`:h}
 function driveHtml(){
  const c=driveCfg();
+ if(!c&&!DRIVE_CLIENT_ID)return''; // sem ID embutido: Drive fica fora da tela do usuário final
  if(!c){
   const org=driveOrigin(),extra=org==='https://localhost'?'':' e também <b>http://localhost</b> / <b>https://localhost</b> (endereço usado pelo app do celular)';
   const aviso=location.protocol==='file:'?'<div class="mu" style="font-size:12px;margin-top:8px">Você abriu o app como arquivo local — o Drive só funciona pelo endereço web ou pelo app instalado.</div>':'';
@@ -504,86 +506,143 @@ function driveHtml(){
   <button class="b w" style="margin-top:8px" onclick="driveDisconnect()">Desconectar</button>
  </div>`;
 }
-async function syncAll(){let r=null;if(syncCfg())r=await syncNow();if(driveCfg()){const r2=await driveSyncNow();if(r2)r=r2}if(jsCfg()){const r3=await jsSyncNow();if(r3)r=r3}return r}
+async function syncAll(){let r=null;if(syncCfg())r=await syncNow();if(driveCfg()){const r2=await driveSyncNow();if(r2)r=r2}if(ntCfg()){const r3=await ntSyncNow();if(r3)r=r3}return r}
 
-// --- NUVEM (jsonstorage.net — conta própria com login Google, sem servidor nosso) ---
-const JKEY='fin_js',JLAST='fin_js_last',JNAME='minhas_financas_backup';
-function jsCfg(){try{return JSON.parse(localStorage.getItem(JKEY))}catch(e){return null}}
-function setJsCfg(c){try{c?localStorage.setItem(JKEY,JSON.stringify(c)):localStorage.removeItem(JKEY)}catch(e){}}
-function jsLast(){try{return JSON.parse(localStorage.getItem(JLAST))}catch(e){return null}}
-function setJsLast(c){try{c?localStorage.setItem(JLAST,JSON.stringify(c)):localStorage.removeItem(JLAST)}catch(e){}}
-function jsRemember(){const c=jsCfg();if(c&&c.itemId)setJsLast({key:c.key,userId:c.userId,itemId:c.itemId})}
-function jsCode(c){try{return'JSC1:'+btoa(unescape(encodeURIComponent(JSON.stringify({k:c.key,u:c.userId,i:c.itemId}))))}catch(e){return''}}
-function jsParseCode(s){try{const j=JSON.parse(decodeURIComponent(escape(atob(String(s).trim().slice(5)))));return j&&j.k&&j.u&&j.i?j:null}catch(e){return null}}
-async function jsReq(method,path,body){
- const c=jsCfg();
- if(!c||!c.key){const e=new Error('nuvem não conectada');e.status=0;throw e}
- const opt={method:method};
- if(method==='POST'||method==='PUT'){opt.headers={'Content-Type':'application/json'};opt.body=body==null?undefined:body}
- const url='https://api.jsonstorage.net'+path+(path.indexOf('?')<0?'?':'&')+'apiKey='+encodeURIComponent(c.key);
- const r=await fetch(url,opt);
+// --- NUVEM 1 TOQUE (telegra.ph — o app cria a conta sozinho; dados criptografados) ---
+const NTKEY='fin_ntg',NTLAST='fin_ntg_last',NTTITLE='Backup';
+function ntCfg(){try{return JSON.parse(localStorage.getItem(NTKEY))}catch(e){return null}}
+function setNtCfg(c){try{c?localStorage.setItem(NTKEY,JSON.stringify(c)):localStorage.removeItem(NTKEY)}catch(e){}}
+function ntLast(){try{return JSON.parse(localStorage.getItem(NTLAST))}catch(e){return null}}
+function setNtLast(c){try{c?localStorage.setItem(NTLAST,JSON.stringify(c)):localStorage.removeItem(NTLAST)}catch(e){}}
+function ntRemember(){const c=ntCfg();if(c&&c.path&&c.token&&c.key)setNtLast({token:c.token,path:c.path,key:c.key})}
+const b64enc=b=>{let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(s)};
+const b64dec=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+function ntRand(n){const b=new Uint8Array(n);crypto.getRandomValues(b);return b}
+function ntLink(c){try{return'NTG1:'+btoa(unescape(encodeURIComponent(JSON.stringify({t:c.token,p:c.path,k:c.key}))))}catch(e){return''}}
+function ntParseLink(s){try{const j=JSON.parse(decodeURIComponent(escape(atob(String(s).trim().slice(5)))));return j&&j.t&&j.p&&j.k?j:null}catch(e){return null}}
+async function ntSeal(txt,keyB64){
+ let bytes=new TextEncoder().encode(txt);
+ try{const cs=new CompressionStream('gzip');bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer())}catch(e){}
+ const key=await crypto.subtle.importKey('raw',b64dec(keyB64),{name:'AES-GCM'},false,['encrypt']);
+ const iv=ntRand(12);
+ const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes);
+ const all=new Uint8Array(12+ct.byteLength);all.set(iv);all.set(new Uint8Array(ct),12);
+ return'NTGD:'+b64enc(all);
+}
+async function ntOpen(sealed,keyB64){
+ const all=b64dec(String(sealed).slice(5));
+ const key=await crypto.subtle.importKey('raw',b64dec(keyB64),{name:'AES-GCM'},false,['decrypt']);
+ let bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv:all.subarray(0,12)},key,all.subarray(12));
+ try{const ds=new DecompressionStream('gzip');bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer())}catch(e){}
+ return new TextDecoder().decode(bytes);
+}
+async function ntApi(path,fields){
+ const opt=fields?{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:Object.entries(fields).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&')}:{};
+ const r=await fetch('https://api.telegra.ph/'+path,opt);
  if(!r.ok){const e=new Error('HTTP '+r.status);e.status=r.status;throw e}
- return r.status===204?null:r.json();
+ const j=await r.json();
+ if(!j||j.ok!==true){const e=new Error((j&&j.error)||'resposta inesperada');e.tag=(j&&j.error)||'';throw e}
+ return j.result;
 }
-async function jsCreateItem(){
- const j=await jsReq('POST','/v1/json?name='+encodeURIComponent(JNAME),cloudPayload());
- let uid=j&&j.userId,iid=j&&j.itemId;
- if(!iid&&j&&j.uri){const m=String(j.uri).match(/\/json\/([^/?]+)\/([^/?]+)/);if(m){uid=m[1];iid=m[2]}}
- if(!iid||!uid)throw new Error('resposta inesperada do servidor');
- setJsCfg(Object.assign(jsCfg()||{},{userId:uid,itemId:iid,lastSync:Date.now()}));
- jsRemember();
- return iid;
+async function ntGet(path){
+ const res=await ntApi('getPage/'+path+'?with_content=true');
+ const kids=(res&&res.content||[]).map(n=>Array.isArray(n.children)?n.children.join(''):(n.children||'')).join('');
+ const m=kids.match(/NTGD:[A-Za-z0-9+/=]+/);
+ return m?m[0]:null;
 }
-async function jsFindByUid(uid){
- try{
-  const arr=await jsReq('GET','/v1/json/'+encodeURIComponent(uid)+'?_start=0&_end=100');
-  const list=Array.isArray(arr)?arr:(arr&&arr.items)||[];
-  const it=list.find(x=>x&&(x.name===JNAME||x.Name===JNAME));
-  return it?(it.itemId||it.id||it._id||null):null;
- }catch(e){return null}
+async function ntWrite(sealed){
+ const c=ntCfg();
+ await ntApi('editPage',{access_token:c.token,path:c.path,title:NTTITLE,content:JSON.stringify([{tag:'p',children:[sealed]}])});
 }
-async function jsPush(prevP){
+async function ntPush(prevP){
  if(prevP&&prevP.data&&Array.isArray(prevP.data.tx)&&JSON.stringify(prevP.data)!==JSON.stringify(S))
   pushHist(prevP.data,prevP.upd);
- const c=jsCfg();
- await jsReq('PUT','/v1/json/'+c.userId+'/'+c.itemId,cloudPayload());
- setJsCfg(Object.assign(jsCfg()||{},{lastSync:Date.now()}));
+ await ntWrite(await ntSeal(cloudPayload(),ntCfg().key));
+ setNtCfg(Object.assign(ntCfg()||{},{lastSync:Date.now()}));
 }
-async function jsSyncNow(){
- const c=jsCfg();
- if(!c||!c.itemId||syncBusy)return null;
+async function ntRecreate(){ // página apagada na nuvem → recria com a mesma conta
+ const c=ntCfg();
+ const sealed=await ntSeal(cloudPayload(),c.key);
+ const res=await ntApi('createPage',{access_token:c.token,title:NTTITLE,content:JSON.stringify([{tag:'p',children:[sealed]}])});
+ setNtCfg(Object.assign(c,{path:res.path,lastSync:Date.now()}));
+ ntRemember();
+}
+async function ntSyncNow(){
+ const c=ntCfg();
+ if(!c||!c.path||syncBusy)return null;
  syncBusy=true;
  try{
-  let p=null;
-  try{p=await jsReq('GET','/v1/json/'+c.userId+'/'+c.itemId)}
+  let sealed=null;
+  try{sealed=await ntGet(c.path)}
   catch(e){
-   if(e.status===404){await jsCreateItem();return'enviado'} // item apagado na nuvem → recria
+   if(e.tag==='PAGE_NOT_FOUND'){await ntRecreate();return'enviado'}
    throw e;
   }
-  if(p&&p.json&&typeof p.json==='object'&&!p.data)p=p.json; // resposta embrulhada
+  let p=null;
+  if(sealed){try{p=JSON.parse(await ntOpen(sealed,c.key))}catch(e){}}
   if(p&&Array.isArray(p.hist))cloudHist=p.hist;
   const lu=S.upd||0,ru=p&&p.upd?p.upd:0;
-  if(!p||!p.data||!Array.isArray(p.data.tx)){await jsPush();return'enviado'}
-  if(ru===lu){setJsCfg(Object.assign(jsCfg(),{lastSync:Date.now()}));return'em dia'}
-  if(ru<lu){await jsPush(p);return'enviado'}
+  if(!p||!p.data||!Array.isArray(p.data.tx)){await ntPush();return'enviado'}
+  if(ru===lu){setNtCfg(Object.assign(ntCfg(),{lastSync:Date.now()}));return'em dia'}
+  if(ru<lu){await ntPush(p);return'enviado'}
   if(lu>(c.lastSync||0)){
    const useLocal=confirm('Os dados mudaram nos dois aparelhos desde a última sincronização.\n\nOK = enviar a versão DESTE aparelho\nCancelar = baixar a versão da nuvem');
-   if(useLocal){await jsPush(p);return'conflito-enviado'}
-   applyRemote(p);setJsCfg(Object.assign(jsCfg(),{lastSync:Date.now()}));return'conflito-nuvem';
+   if(useLocal){await ntPush(p);return'conflito-enviado'}
+   applyRemote(p);setNtCfg(Object.assign(ntCfg(),{lastSync:Date.now()}));return'conflito-nuvem';
   }
-  applyRemote(p);setJsCfg(Object.assign(jsCfg(),{lastSync:Date.now()}));return'atualizado';
- }catch(e){return'erro: '+e.message}
+  applyRemote(p);setNtCfg(Object.assign(ntCfg(),{lastSync:Date.now()}));return'atualizado';
+ }catch(e){return'erro: '+(e.tag==='CONTENT_TOO_BIG'?'dados grandes demais para a nuvem':e.message)}
  finally{syncBusy=false}
 }
-async function jsConnect(raw){
+async function ntCreateUI(){
+ if(window.__ntBusy)return;window.__ntBusy=true;
+ try{
+  // Se já existe outra nuvem ativa (GitHub/Drive), pergunta antes de trocar
+  let backSync=null,backDrive=null;
+  if(syncCfg()||driveCfg()){
+   const quem=driveCfg()?'Google Drive':'GitHub';
+   if(!confirm('A sincronização do '+quem+' está ativa.\n\nOK = trocar para a Nuvem (o '+quem+' é desligado)\nCancelar = manter o '+quem))return;
+   backSync=syncCfg();backDrive=driveCfg();
+   setSyncCfg(null);setDriveCfg(null);dTok=null;dExp=0;
+  }
+  const undo=()=>{if(backSync)setSyncCfg(backSync);if(backDrive)setDriveCfg(backDrive);setNtCfg(null)};
+  // Já criou nuvem antes neste aparelho? Reativa em vez de duplicar
+  const last=ntLast();
+  if(last&&last.path){
+   setNtCfg({token:last.token,path:last.path,key:last.key,lastSync:0});
+   const r=await ntSyncNow();
+   if(!r||!r.startsWith('erro')){ntRemember();render();alert('Nuvem reativada ✅ Backup automático ligado.');return}
+   undo();
+   if(/ACCESS_TOKEN|INVALID/.test(r))setNtLast(null);
+   alert('Não consegui reativar a nuvem ('+r.slice(6)+'). Confira a internet e tente de novo.');
+   return;
+  }
+  try{
+   const acc=await ntApi('createAccount',{short_name:'fin'+Math.random().toString(36).slice(2,8)});
+   const token=acc&&acc.access_token?acc.access_token:String(acc);
+   if(!token)throw new Error('ACCESS_TOKEN_INVALID');
+   const key=b64enc(ntRand(32));
+   const sealed=await ntSeal(cloudPayload(),key);
+   const res=await ntApi('createPage',{access_token:token,title:NTTITLE,content:JSON.stringify([{tag:'p',children:[sealed]}])});
+   if(!res||!res.path)throw new Error('resposta inesperada do servidor');
+   setNtCfg({token:token,path:res.path,key:key,lastSync:Date.now()});
+   ntRemember();
+  }catch(e){
+   undo();
+   alert('Não consegui criar a nuvem ('+(e.tag||e.message)+'). Confira a internet e tente de novo.');
+   return;
+  }
+  render();
+  alert('Nuvem ativada ✅ O app criou sua nuvem e salvou tudo criptografado.');
+ }finally{window.__ntBusy=false}
+}
+async function ntConnect(raw){
  raw=String(raw||'').trim();
- if(!raw)return'Cole a chave da sua nuvem (ou o link de sincronização).';
- const isCode=raw.indexOf('JSC1:')===0;
- const tgt=isCode?jsParseCode(raw):null;
- if(isCode&&!tgt)return'Link de sincronização inválido.';
- const tgtKey=tgt?tgt.k:raw;
- const cur=jsCfg();
- if(cur&&tgtKey&&tgtKey!==cur.key){
+ if(!raw)return'Cole o link de sincronização.';
+ const tgt=ntParseLink(raw);
+ if(!tgt)return'Link de sincronização inválido.';
+ const cur=ntCfg();
+ if(cur&&(cur.path!==tgt.p||cur.token!==tgt.t)){
   if(!confirm('Já existe uma nuvem conectada.\n\nOK = trocar para a nova nuvem\nCancelar = manter a atual'))return'Sincronização já ativa na Nuvem.';
  }
  let backSync=null,backDrive=null;
@@ -594,87 +653,50 @@ async function jsConnect(raw){
   setSyncCfg(null);setDriveCfg(null);dTok=null;dExp=0;
  }
  const prev=cur;
- const fail=msg=>{if(backSync)setSyncCfg(backSync);if(backDrive)setDriveCfg(backDrive);setJsCfg(prev||null);return msg};
- if(tgt){
-  setJsCfg({key:tgt.k,userId:tgt.u,itemId:tgt.i,lastSync:0});
-  jsRemember();
-  const r=await jsSyncNow();
-  if(r&&r.startsWith('erro'))return fail('Não consegui baixar da nuvem ('+r.slice(6)+'). Confira a internet e tente de novo.');
-  return'';
- }
- // chave: se já usamos esta chave antes, reutiliza o mesmo item (não duplica)
- const last=jsLast();
- if(last&&last.key===raw&&last.itemId){
-  setJsCfg({key:raw,userId:last.userId,itemId:last.itemId,lastSync:0});
-  const r=await jsSyncNow();
-  if(!r||!r.startsWith('erro')){jsRemember();return''}
-  const st=parseInt(String(r).replace(/[^0-9]/g,''),10);
-  if(!st||st>=500)return fail('Não consegui conectar ('+r.slice(6)+'). Confira sua internet.');
-  setJsCfg({key:raw,userId:null,itemId:null,lastSync:0});
- }
- // tenta achar a nuvem do próprio dono da chave (evita item duplicado)
- if(!(jsCfg()&&jsCfg().userId)){
-  const iid=await jsFindByUid(raw);
-  if(iid){
-   setJsCfg({key:raw,userId:raw,itemId:iid,lastSync:0});
-   const r=await jsSyncNow();
-   if(!r||!r.startsWith('erro')){jsRemember();return''}
-  }
-  setJsCfg({key:raw,userId:null,itemId:null,lastSync:0});
- }
- try{await jsCreateItem()}
- catch(e){
-  if(e.status===400||e.status===401||e.status===403)return fail('A chave não foi aceita. Copie a chave novamente no painel (ícone da chave) e tente de novo.');
-  return fail('Não consegui criar a nuvem ('+e.message+'). Confira sua internet.');
- }
+ const fail=msg=>{if(backSync)setSyncCfg(backSync);if(backDrive)setDriveCfg(backDrive);setNtCfg(prev||null);return msg};
+ setNtCfg({token:tgt.t,path:tgt.p,key:tgt.k,lastSync:0});
+ ntRemember();
+ const r=await ntSyncNow();
+ if(r&&r.startsWith('erro'))return fail('Não consegui baixar da nuvem ('+r.slice(6)+'). Confira a internet e tente de novo.');
  return'';
 }
-async function jsConnectUI(){
- const el=$('#f_jkey');
- const msg=await jsConnect(el?el.value:'');
+async function ntConnectUI(){
+ const el=$('#f_ntlink');
+ const msg=await ntConnect(el?el.value:'');
  if(msg){alert(msg);return}
  render();
  alert('Nuvem conectada ✅ Backup automático ligado.');
 }
-function jsDisconnect(){if(confirm('Desconectar a nuvem? Os dados continuam salvos neste aparelho.')){setJsCfg(null);render()}}
-function jsOpenSite(){
- const u='https://app.jsonstorage.net';
- try{
-  if(window.Capacitor||window.cordova){location.href=u;return}
-  if(!window.open(u,'_blank'))location.href=u;
- }catch(e){location.href=u}
-}
-function jsCopyLink(){
- const ta=$('#f_jslink');if(!ta)return;
+function ntDisconnect(){if(confirm('Desconectar a nuvem? Os dados continuam salvos neste aparelho.')){setNtCfg(null);render()}}
+function ntCopyLink(){
+ const ta=$('#f_ntglink');if(!ta)return;
  ta.focus();ta.select();try{ta.setSelectionRange(0,99999)}catch(e){}
- const done=()=>{const m=$('#jsLinkMsg');if(m)m.textContent='Copiado ✅'};
+ const done=()=>{const m=$('#ntgLinkMsg');if(m)m.textContent='Copiado ✅'};
  try{
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(ta.value).then(done).catch(()=>{try{if(document.execCommand('copy'))done()}catch(e){}});return}
  }catch(e){}
  try{if(document.execCommand('copy'))done()}catch(e){}
 }
-function jsHtml(){
- const c=jsCfg();
+function ntHtml(){
+ const c=ntCfg();
  if(!c){
   return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Nuvem (backup automático)</b>
-   <div class="mu" style="margin-top:6px">Suas contas ficam salvas sozinhas na nuvem (jsonstorage.net) — sem GitHub, sem instalar nada.</div>
-   <div class="mu" style="font-size:12px;margin-top:8px;line-height:1.6"><b>1.</b> Toque em <b>Criar minha nuvem</b>, entre com <b>Fazer Login com o Google</b> e copie sua <b>chave</b> (ícone da chave no painel).<br><b>2.</b> Cole a chave aqui e toque em <b>Conectar</b>.</div>
-   <button class="b w" style="margin-top:8px" onclick="jsOpenSite()">${ico('cloud-upload-outline',18)} Criar minha nuvem</button>
-   <input id="f_jkey" type="password" autocomplete="off" placeholder="Cole aqui a chave da sua nuvem" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font:inherit">
-   <button class="b p w" style="margin-top:8px" onclick="jsConnectUI()">${ico('key-outline',18)} Conectar e sincronizar</button>
-   <div class="mu" style="font-size:12px;margin-top:8px">Em <b>outro aparelho</b>, em vez da chave use o <b>link de sincronização</b> mostrado após conectar.</div>
+   <div class="mu" style="margin-top:6px">Um toque e pronto: o app cria sua nuvem sozinho e salva tudo <b>criptografado</b> — sem login, sem chave, sem cadastro.</div>
+   <button class="b p w" style="margin-top:10px" onclick="ntCreateUI()">${ico('cloud-upload-outline',18)} Ativar nuvem</button>
+   <div class="mu" style="font-size:12px;margin-top:10px">Já ativou? Para sincronizar <b>outro aparelho</b>, cole aqui o link de sincronização:</div>
+   <div style="display:flex;gap:6px;margin-top:6px"><input id="f_ntlink" type="text" autocomplete="off" placeholder="Link de sincronização" style="flex:1;min-width:0;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font-size:13px;font:inherit"><button class="b" style="padding:10px 14px;white-space:nowrap" onclick="ntConnectUI()">Conectar</button></div>
   </div>`;
  }
  const ls=c.lastSync?new Date(c.lastSync).toLocaleString('pt-BR'):'—';
- const link=c.itemId?jsCode(c):'';
+ const link=c.path?ntLink(c):'';
  return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Nuvem ativa</b>
-  <div class="mu" style="margin-top:6px">Backup automático ligado · última sincronização: ${ls}</div>
+  <div class="mu" style="margin-top:6px">Backup automático ligado · última sincronização: ${ls}<br>Dados <b>criptografados</b> — só quem tem o link consegue ler.</div>
   <div id="syncMsg" class="mu" style="font-size:12px;min-height:16px"></div>
   <button class="b p w" style="margin-top:8px" onclick="syncNowUI()">${ico('sync-outline',18)} Sincronizar agora</button>
   ${link?`<div class="mu" style="font-size:12px;margin-top:10px">Sincronizar <b>outro aparelho</b>: copie o link abaixo e cole no outro aparelho.</div>
-  <div style="display:flex;gap:6px;margin-top:6px"><input id="f_jslink" type="text" readonly value="${link}" style="flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font-size:12px;font:inherit" onclick="this.select()"><button class="b" style="padding:9px 12px;white-space:nowrap" onclick="jsCopyLink()">${ico('clipboard-outline',16)} Copiar</button></div>
-  <div id="jsLinkMsg" class="mu" style="font-size:12px;min-height:16px"></div>`:''}
-  <button class="b w" style="margin-top:8px" onclick="jsDisconnect()">Desconectar</button>
+  <div style="display:flex;gap:6px;margin-top:6px"><input id="f_ntglink" type="text" readonly value="${link}" style="flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font-size:12px;font:inherit" onclick="this.select()"><button class="b" style="padding:9px 12px;white-space:nowrap" onclick="ntCopyLink()">${ico('clipboard-outline',16)} Copiar</button></div>
+  <div id="ntgLinkMsg" class="mu" style="font-size:12px;min-height:16px"></div>`:''}
+  <button class="b w" style="margin-top:8px" onclick="ntDisconnect()">Desconectar</button>
  </div>`;
 }
 
@@ -1101,7 +1123,7 @@ function hist(){
   <button class="b w" onclick="lockSheet()" style="margin-bottom:10px">${ico('lock-closed-outline',18)} ${lockCfg()?'Bloqueio por PIN (ativo)':'Ativar bloqueio por PIN'}</button>
   <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
  </div>
- ${jsHtml()}${jsCfg()?`<details style="margin-top:12px"><summary class="mu" style="cursor:pointer">Outras formas: Google Drive</summary>${driveHtml()}</details>`:driveHtml()}${syncCfg()?syncHtml():`<details style="margin-top:12px"><summary class="mu" style="cursor:pointer">Outras formas: sincronizar com GitHub</summary>${syncHtml()}</details>`}`;
+ ${ntHtml()}${driveSection()}${syncCfg()?syncHtml():`<details style="margin-top:12px"><summary class="mu" style="cursor:pointer">Outras formas: sincronizar com GitHub</summary>${syncHtml()}</details>`}`;
 }
 function render(){
  $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda}[tab]();
@@ -1120,7 +1142,7 @@ if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova)
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 // Sincronização: atualiza a nuvem imediatamente ao abrir o app (se conectado)
-if(syncCfg()||driveCfg()||jsCfg())autoSync();
+if(syncCfg()||driveCfg()||ntCfg())autoSync();
 // Bloqueio por PIN: pede o PIN logo na abertura (se ativado neste aparelho)
 if(lockCfg())lockShow();
 
@@ -1129,7 +1151,7 @@ let touchStartY = 0;
 document.addEventListener('touchstart', e => touchStartY = e.touches[0].clientY);
 document.addEventListener('touchend', e => {
   if (window.scrollY === 0 && e.changedTouches[0].clientY - touchStartY > 100) {
-    if(syncCfg()||driveCfg()||jsCfg()){syncNowUI();alert('Atualizando dados...');}
+    if(syncCfg()||driveCfg()||ntCfg()){syncNowUI();alert('Atualizando dados...');}
   }
 });
 </script>
