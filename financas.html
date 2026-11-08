@@ -356,6 +356,10 @@ function syncDisconnect(){if(confirm('Desconectar a sincronização? Os dados co
 
 // --- GOOGLE DRIVE (backup automático sem GitHub) ---
 const DKEY='fin_drive',DNAME='minhas_financas_backup.json',DSCOPE='https://www.googleapis.com/auth/drive.file';
+// Client ID do desenvolvedor (criado 1 vez no console.cloud.google.com).
+// Com ele preenchido, o usuário final só vê “Entrar com Google” — sem configurar nada.
+const DRIVE_CLIENT_ID='';
+const gIcon=s=>`<svg viewBox="0 0 48 48" width="${s}" height="${s}" style="vertical-align:-${Math.round(s/4)}px" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
 function driveCfg(){try{return JSON.parse(localStorage.getItem(DKEY))}catch(e){return null}}
 function setDriveCfg(c){try{c?localStorage.setItem(DKEY,JSON.stringify(c)):localStorage.removeItem(DKEY)}catch(e){}}
 const driveOrigin=()=>{try{const o=location.origin;if(o&&o!=='null'&&o!=='file:')return o}catch(e){}return'(o endereço http onde o app é aberto)'};
@@ -439,7 +443,7 @@ async function driveSyncNow(){
 }
 async function driveConnect(){
  const el=$('#f_cid');
- const cid=String(el&&el.value||'').trim()||(driveCfg()&&driveCfg().clientId)||'';
+ const cid=String(el&&el.value||'').trim()||(driveCfg()&&driveCfg().clientId)||DRIVE_CLIENT_ID||'';
  if(!cid)return'Cole o Client ID do Google.';
  if(syncCfg()){
   if(!confirm('A sincronização do GitHub está ativa.\n\nOK = trocar para o Google Drive (GitHub é desligado)\nCancelar = manter o GitHub'))return'Sincronização já ativa no GitHub.';
@@ -465,19 +469,24 @@ function driveHtml(){
  const c=driveCfg();
  if(!c){
   const org=driveOrigin(),extra=org==='https://localhost'?'':' e também <b>http://localhost</b> / <b>https://localhost</b> (endereço usado pelo app do celular)';
+  const aviso=location.protocol==='file:'?'<div class="mu" style="font-size:12px;margin-top:8px">Você abriu o app como arquivo local — o Drive só funciona pelo endereço web ou pelo app instalado.</div>':'';
+  const campo=`<input id="f_cid" type="text" autocomplete="off" placeholder="ID do cliente OAuth (….apps.googleusercontent.com)" style="width:100%;margin-top:10px;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font:inherit">`;
+  const btn=`<button class="b p w" style="margin-top:8px" onclick="driveConnectUI()">${gIcon(17)} Entrar com Google</button>`;
+  const passos=`<details style="margin-top:8px"><summary class="mu" style="cursor:pointer">${DRIVE_CLIENT_ID?'Avançado: usar outro Client ID (passo a passo)':'Como criar o Client ID (1 vez, no seu Google)'}</summary><div class="mu" style="font-size:12px;margin-top:8px;line-height:1.6">1. Abra <b>console.cloud.google.com</b> e crie um projeto (ou use um existente).<br>2. Em <b>APIs e serviços → Biblioteca</b>, ative a <b>Google Drive API</b>.<br>3. Em <b>APIs e serviços → Tela de consentimento</b>: escolha Externo, preencha o mínimo e adicione seu e-mail em <b>Usuários de teste</b>.<br>4. Em <b>Credenciais → Criar credenciais → ID do cliente OAuth</b>, escolha <b>Aplicativo Web</b>. Em <b>Origens JavaScript autorizadas</b> adicione <b>${org}</b>${extra}.<br>5. Copie o <b>ID do cliente</b> gerado (….apps.googleusercontent.com) e cole abaixo.</div>${campo}</details>`;
+  if(DRIVE_CLIENT_ID)return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive (backup automático)</b>
+   <div class="mu" style="margin-top:6px">Seus dados são salvos sozinhos no seu Google Drive. Entre com a sua conta Google — só na primeira vez.</div>
+   ${btn}${aviso}${passos}
+  </div>`;
   return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive (backup automático)</b>
    <div class="mu" style="margin-top:6px">Entre com a sua conta Google e os dados são salvos no Drive sozinhos — sem GitHub, sem token.</div>
-   <details style="margin-top:8px"><summary class="mu" style="cursor:pointer">Como criar o Client ID (1 vez, no seu Google)</summary><div class="mu" style="font-size:12px;margin-top:8px;line-height:1.6">1. Abra <b>console.cloud.google.com</b> e crie um projeto (ou use um existente).<br>2. Em <b>APIs e serviços → Biblioteca</b>, ative a <b>Google Drive API</b>.<br>3. Em <b>APIs e serviços → Tela de consentimento</b>: escolha Externo, preencha o mínimo e adicione seu e-mail em <b>Usuários de teste</b>.<br>4. Em <b>Credenciais → Criar credenciais → ID do cliente OAuth</b>, escolha <b>Aplicativo Web</b>. Em <b>Origens JavaScript autorizadas</b> adicione <b>${org}</b>${extra}.<br>5. Copie o <b>ID do cliente</b> gerado (….apps.googleusercontent.com) e cole abaixo.</div></details>
-   <input id="f_cid" type="text" autocomplete="off" placeholder="ID do cliente OAuth (….apps.googleusercontent.com)" style="width:100%;margin-top:10px;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font:inherit">
-   <button class="b p w" style="margin-top:8px" onclick="driveConnectUI()">${ico('cloud-upload-outline',18)} Entrar com Google</button>
-   ${location.protocol==='file:'?'<div class="mu" style="font-size:12px;margin-top:8px">Você abriu o app como arquivo local — o Drive só funciona pelo endereço web ou pelo app instalado.</div>':''}
+   ${passos}${btn}${aviso}
   </div>`;
  }
  const ls=c.lastSync?new Date(c.lastSync).toLocaleString('pt-BR'):'—';
  if(!c.lastSync)return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive</b>
-  <div class="mu" style="margin-top:6px">Client ID salvo. Toque para entrar com a sua conta Google.</div>
+  <div class="mu" style="margin-top:6px">Toque para entrar com a sua conta Google.</div>
   <div id="syncMsg" class="mu" style="font-size:12px;min-height:16px"></div>
-  <button class="b p w" style="margin-top:8px" onclick="driveConnectUI()">${ico('cloud-upload-outline',18)} Entrar com Google</button>
+  <button class="b p w" style="margin-top:8px" onclick="driveConnectUI()">${gIcon(17)} Entrar com Google</button>
   <button class="b w" style="margin-top:8px" onclick="driveDisconnect()">Esquecer este Client ID</button>
  </div>`;
  return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive ativo</b>
@@ -912,7 +921,7 @@ function hist(){
   <button class="b w" onclick="lockSheet()" style="margin-bottom:10px">${ico('lock-closed-outline',18)} ${lockCfg()?'Bloqueio por PIN (ativo)':'Ativar bloqueio por PIN'}</button>
   <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
  </div>
- ${syncHtml()}${driveHtml()}`;
+ ${driveHtml()}${syncCfg()?syncHtml():`<details style="margin-top:12px"><summary class="mu" style="cursor:pointer">Outras formas: sincronizar com GitHub</summary>${syncHtml()}</details>`}`;
 }
 function render(){
  $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda}[tab]();
