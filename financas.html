@@ -220,14 +220,14 @@ const SKEY='fin_sync',GF='minhas-financas.json',GD='Minhas Finanças backup';
 function syncCfg(){try{return JSON.parse(localStorage.getItem(SKEY))}catch(e){return null}}
 function setSyncCfg(c){try{c?localStorage.setItem(SKEY,JSON.stringify(c)):localStorage.removeItem(SKEY)}catch(e){}}
 let syncBusy=false,syncTimer=null;
-function scheduleSync(){if(window.__noAutoSync)return;if(!syncCfg()||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),1200)}
+function scheduleSync(){if(window.__noAutoSync)return;if((!syncCfg()&&!driveCfg())||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),1200)}
 function autoSync(){
  if(window.__noAutoSync)return;
- if(!syncCfg())return;
+ if(!syncCfg()&&!driveCfg())return;
  // Não mexe nos dados enquanto o usuário está com um formulário aberto
  if($('#ov')&&!$('#ov').hidden)return;
  if(syncBusy){clearTimeout(syncTimer);syncTimer=setTimeout(autoSync,1200);return} // entra na fila
- syncNow().then(r=>{if((r==='atualizado'||r==='conflito-nuvem')&&$('#ov').hidden)render()}).catch(()=>{})
+ syncAll().then(r=>{if((r==='atualizado'||r==='conflito-nuvem')&&$('#ov').hidden)render()}).catch(()=>{})
 }
 async function ghApi(method,path,body){
  const c=syncCfg();
@@ -266,6 +266,10 @@ async function pushLocal(prevP){
 async function syncConnect(tok){
  tok=String(tok||'').trim();
  if(!tok)return'Cole o token de acesso.';
+ if(driveCfg()){
+  if(!confirm('A sincronização do Google Drive está ativa.\n\nOK = trocar para GitHub (o Drive é desligado)\nCancelar = manter o Drive'))return'Sincronização já ativa no Google Drive.';
+  setDriveCfg(null);dTok=null;dExp=0;
+ }
  const prev=syncCfg();
  setSyncCfg({token:tok,gistId:prev&&prev.gistId?prev.gistId:null,lastSync:0});
  try{await ghApi('GET','/user')}
@@ -341,7 +345,7 @@ async function syncConnectUI(){
  else alert('Conectado! Dados sincronizados.');
 }
 async function syncNowUI(){
- const r=await syncNow();
+ const r=await syncAll();
  const txt={'enviado':'Enviado para a nuvem ✅','atualizado':'Baixado da nuvem ✅','em dia':'Tudo em dia ✅','conflito-enviado':'Enviado a versão deste aparelho ✅','conflito-nuvem':'Baixado a versão da nuvem ✅'}[r]||(r&&r.startsWith('erro')?'Erro: '+r.slice(6):'');
  const m=$('#syncMsg');
  if(m&&txt)m.textContent=txt;
@@ -349,6 +353,141 @@ async function syncNowUI(){
  if(r==='atualizado'||r==='conflito-nuvem')render();
 }
 function syncDisconnect(){if(confirm('Desconectar a sincronização? Os dados continuam salvos neste aparelho.')){setSyncCfg(null);render()}}
+
+// --- GOOGLE DRIVE (backup automático sem GitHub) ---
+const DKEY='fin_drive',DNAME='minhas_financas_backup.json',DSCOPE='https://www.googleapis.com/auth/drive.file';
+function driveCfg(){try{return JSON.parse(localStorage.getItem(DKEY))}catch(e){return null}}
+function setDriveCfg(c){try{c?localStorage.setItem(DKEY,JSON.stringify(c)):localStorage.removeItem(DKEY)}catch(e){}}
+const driveOrigin=()=>{try{const o=location.origin;if(o&&o!=='null'&&o!=='file:')return o}catch(e){}return'(o endereço http onde o app é aberto)'};
+let gisP=null;
+function ensureGis(){
+ if(window.google&&window.google.accounts&&window.google.accounts.oauth2)return Promise.resolve();
+ if(gisP)return gisP;
+ gisP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>{gisP=null;rej(new Error('sem internet'))};document.head.appendChild(s)});
+ return gisP;
+}
+let dTok=null,dExp=0;
+function driveToken(force){
+ if(dTok&&Date.now()<dExp-9e5&&!force)return Promise.resolve(dTok);
+ return ensureGis().then(()=>new Promise(res=>{
+  let done=false;
+  const ok=v=>{if(done)return;done=true;if(v&&v.access_token){dTok=v.access_token;dExp=Date.now()+(+v.expires_in||3600)*1000;res(dTok)}else{dTok=null;res(null)}};
+  try{
+   const tc=window.google.accounts.oauth2.initTokenClient({client_id:(driveCfg()||{}).clientId||'',scope:DSCOPE,
+    callback:ok,error_callback:()=>{if(done)return;done=true;dTok=null;res(null)}});
+   tc.requestAccessToken({prompt:force?'consent':''});
+  }catch(e){res(null)}
+  setTimeout(()=>{if(!done){done=true;res(dTok||null)}},20000);
+ })).catch(()=>null);
+}
+async function dReq(url,opt){
+ const t=await driveToken(false);
+ if(!t){const e=new Error('sessão do Google expirada — toque em “Entrar com Google”.');e.status=401;throw e}
+ const h={'Authorization':'Bearer '+t};
+ if(opt&&opt.ctype)h['Content-Type']=opt.ctype;
+ const r=await fetch(url,{method:(opt&&opt.method)||'GET',headers:h,body:opt&&opt.body!=null?opt.body:undefined});
+ if(!r.ok){const e=new Error('HTTP '+r.status);e.status=r.status;throw e}
+ return r.status===204?null:r;
+}
+async function dFind(){
+ const q=encodeURIComponent("name='"+DNAME+"' and trashed=false");
+ const r=await dReq('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)');
+ const j=await r.json();
+ return(j.files&&j.files[0]&&j.files[0].id)||null;
+}
+async function dContent(id){const r=await dReq('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media');return r.text()}
+async function dUpload(id){await dReq('https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media',{method:'PATCH',ctype:'application/json',body:cloudPayload()})}
+async function dCreate(){
+ const r=await dReq('https://www.googleapis.com/drive/v3/files',{method:'POST',ctype:'application/json',body:JSON.stringify({name:DNAME,description:GD})});
+ const j=await r.json();
+ await dUpload(j.id);
+ return j.id;
+}
+async function drivePush(id,prevP){
+ if(prevP&&prevP.data&&Array.isArray(prevP.data.tx)&&JSON.stringify(prevP.data)!==JSON.stringify(S))
+  pushHist(prevP.data,prevP.upd);
+ await dUpload(id);
+ setDriveCfg(Object.assign(driveCfg()||{},{lastSync:Date.now()}));
+}
+async function driveSyncNow(){
+ const c=driveCfg();
+ if(!c||!c.clientId||syncBusy)return null;
+ syncBusy=true;
+ try{
+  let id=c.fileId;
+  if(!id){
+   id=await dFind();
+   if(!id){id=await dCreate();setDriveCfg(Object.assign(c,{fileId:id,lastSync:Date.now()}));return'enviado'}
+   setDriveCfg(Object.assign(c,{fileId:id}));c.fileId=id;
+  }
+  let p=null;try{p=JSON.parse(await dContent(id))}catch(e){}
+  if(p&&Array.isArray(p.hist))cloudHist=p.hist;
+  const lu=S.upd||0,ru=p&&p.upd?p.upd:0;
+  if(!p||!p.data||!Array.isArray(p.data.tx)){await drivePush(id);return'enviado'}
+  if(ru===lu){setDriveCfg(Object.assign(c,{lastSync:Date.now()}));return'em dia'}
+  if(ru<lu){await drivePush(id,p);return'enviado'}
+  if(lu>(c.lastSync||0)){
+   const useLocal=confirm('Os dados mudaram nos dois aparelhos desde a última sincronização.\n\nOK = enviar a versão DESTE aparelho\nCancelar = baixar a versão da nuvem');
+   if(useLocal){await drivePush(id,p);return'conflito-enviado'}
+   applyRemote(p);setDriveCfg(Object.assign(driveCfg(),{lastSync:Date.now()}));return'conflito-nuvem';
+  }
+  applyRemote(p);setDriveCfg(Object.assign(driveCfg(),{lastSync:Date.now()}));return'atualizado';
+ }catch(e){
+  if(e.status===401)dTok=null;
+  return'erro: '+e.message;
+ }finally{syncBusy=false}
+}
+async function driveConnect(){
+ const el=$('#f_cid');
+ const cid=String(el&&el.value||'').trim()||(driveCfg()&&driveCfg().clientId)||'';
+ if(!cid)return'Cole o Client ID do Google.';
+ if(syncCfg()){
+  if(!confirm('A sincronização do GitHub está ativa.\n\nOK = trocar para o Google Drive (GitHub é desligado)\nCancelar = manter o GitHub'))return'Sincronização já ativa no GitHub.';
+  setSyncCfg(null);
+ }
+ const prev=driveCfg();
+ setDriveCfg({clientId:cid,fileId:prev&&prev.clientId===cid?prev.fileId:null,lastSync:prev&&prev.clientId===cid?prev.lastSync:0});
+ dTok=null;dExp=0;
+ const t=await driveToken(true);
+ if(!t){setDriveCfg(prev);return'Não consegui entrar com o Google. Confira o Client ID, as “Origens JavaScript autorizadas” e se seu e-mail está em “Usuários de teste” na tela de consentimento.'}
+ const r=await driveSyncNow();
+ if(r&&r.startsWith('erro'))return r;
+ return'';
+}
+async function driveConnectUI(){
+ const msg=await driveConnect();
+ if(msg){alert(msg);return}
+ render();
+ alert('Conectado ao Google Drive ✅ Backup automático ligado.');
+}
+function driveDisconnect(){if(confirm('Desconectar o Google Drive? Os dados continuam salvos neste aparelho.')){dTok=null;dExp=0;setDriveCfg(null);render()}}
+function driveHtml(){
+ const c=driveCfg();
+ if(!c){
+  const org=driveOrigin(),extra=org==='https://localhost'?'':' e também <b>http://localhost</b> / <b>https://localhost</b> (endereço usado pelo app do celular)';
+  return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive (backup automático)</b>
+   <div class="mu" style="margin-top:6px">Entre com a sua conta Google e os dados são salvos no Drive sozinhos — sem GitHub, sem token.</div>
+   <details style="margin-top:8px"><summary class="mu" style="cursor:pointer">Como criar o Client ID (1 vez, no seu Google)</summary><div class="mu" style="font-size:12px;margin-top:8px;line-height:1.6">1. Abra <b>console.cloud.google.com</b> e crie um projeto (ou use um existente).<br>2. Em <b>APIs e serviços → Biblioteca</b>, ative a <b>Google Drive API</b>.<br>3. Em <b>APIs e serviços → Tela de consentimento</b>: escolha Externo, preencha o mínimo e adicione seu e-mail em <b>Usuários de teste</b>.<br>4. Em <b>Credenciais → Criar credenciais → ID do cliente OAuth</b>, escolha <b>Aplicativo Web</b>. Em <b>Origens JavaScript autorizadas</b> adicione <b>${org}</b>${extra}.<br>5. Copie o <b>ID do cliente</b> gerado (….apps.googleusercontent.com) e cole abaixo.</div></details>
+   <input id="f_cid" type="text" autocomplete="off" placeholder="ID do cliente OAuth (….apps.googleusercontent.com)" style="width:100%;margin-top:10px;padding:10px;border-radius:10px;border:1px solid var(--ln);background:var(--tint);color:var(--ink);font:inherit">
+   <button class="b p w" style="margin-top:8px" onclick="driveConnectUI()">${ico('cloud-upload-outline',18)} Entrar com Google</button>
+   ${location.protocol==='file:'?'<div class="mu" style="font-size:12px;margin-top:8px">Você abriu o app como arquivo local — o Drive só funciona pelo endereço web ou pelo app instalado.</div>':''}
+  </div>`;
+ }
+ const ls=c.lastSync?new Date(c.lastSync).toLocaleString('pt-BR'):'—';
+ if(!c.lastSync)return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive</b>
+  <div class="mu" style="margin-top:6px">Client ID salvo. Toque para entrar com a sua conta Google.</div>
+  <div id="syncMsg" class="mu" style="font-size:12px;min-height:16px"></div>
+  <button class="b p w" style="margin-top:8px" onclick="driveConnectUI()">${ico('cloud-upload-outline',18)} Entrar com Google</button>
+  <button class="b w" style="margin-top:8px" onclick="driveDisconnect()">Esquecer este Client ID</button>
+ </div>`;
+ return`<div class="cd" style="margin-top:12px"><b>${ico('cloud-upload-outline',16)} Google Drive ativo</b>
+  <div class="mu" style="margin-top:6px">Backup automático ligado · última sincronização: ${ls}<br>O arquivo <b>${DNAME}</b> fica salvo no seu Drive.</div>
+  <div id="syncMsg" class="mu" style="font-size:12px;min-height:16px"></div>
+  <button class="b p w" style="margin-top:8px" onclick="syncNowUI()">${ico('sync-outline',18)} Sincronizar agora</button>
+  <button class="b w" style="margin-top:8px" onclick="driveDisconnect()">Desconectar</button>
+ </div>`;
+}
+async function syncAll(){let r=null;if(syncCfg())r=await syncNow();if(driveCfg()){const r2=await driveSyncNow();if(r2)r=r2}return r}
 
 // --- BLOQUEIO POR PIN (local, nunca vai para a nuvem) ---
 const LKEY='fin_lock';
@@ -477,12 +616,17 @@ function budSheet(){
 
 // --- HISTÓRICO DE VERSÕES NA NUVEM (desfazer) ---
 async function histVerSheet(){
- const c=syncCfg();
- if(!c||!c.gistId){alert('Ative primeiro a sincronização entre aparelhos (botão logo abaixo). O histórico fica guardado na nuvem.');return}
+ const c=syncCfg(),dc=driveCfg();
+ if((!c||!c.gistId)&&(!dc||!dc.fileId)){alert('Ative primeiro a sincronização (Google Drive ou GitHub, logo abaixo). O histórico fica guardado na nuvem.');return}
  try{
-  const g=await ghApi('GET','/gists/'+c.gistId);
-  const f=g.files[GF];
-  if(f){const p=JSON.parse(f.content);if(p&&Array.isArray(p.hist))cloudHist=p.hist}
+  if(c&&c.gistId){
+   const g=await ghApi('GET','/gists/'+c.gistId);
+   const f=g.files[GF];
+   if(f){const p=JSON.parse(f.content);if(p&&Array.isArray(p.hist))cloudHist=p.hist}
+  }else{
+   const p=JSON.parse(await dContent(dc.fileId));
+   if(p&&Array.isArray(p.hist))cloudHist=p.hist;
+  }
  }catch(e){}
  const h=cloudHist;
  const body=h.length?
@@ -507,7 +651,7 @@ async function restoreVer(i){
  if(!Array.isArray(S.ev))S.ev=[];
  if(!S.bud||typeof S.bud!=='object')S.bud={};
  save();close();render();
- syncNow().catch(()=>{});
+ syncAll().catch(()=>{});
  alert('Versão restaurada ✅ — sincronizando com os outros aparelhos.');
 }
 
@@ -768,7 +912,7 @@ function hist(){
   <button class="b w" onclick="lockSheet()" style="margin-bottom:10px">${ico('lock-closed-outline',18)} ${lockCfg()?'Bloqueio por PIN (ativo)':'Ativar bloqueio por PIN'}</button>
   <div class="mu">Baixe um arquivo com todos os seus lançamentos, cartões e compromissos para garantir a segurança das suas informações.</div>
  </div>
- ${syncHtml()}`;
+ ${syncHtml()}${driveHtml()}`;
 }
 function render(){
  $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda}[tab]();
@@ -787,7 +931,7 @@ if(location.protocol.startsWith('http') && !window.Capacitor && !window.cordova)
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 // Sincronização: atualiza a nuvem imediatamente ao abrir o app (se conectado)
-if(syncCfg())autoSync();
+if(syncCfg()||driveCfg())autoSync();
 // Bloqueio por PIN: pede o PIN logo na abertura (se ativado neste aparelho)
 if(lockCfg())lockShow();
 
@@ -796,7 +940,7 @@ let touchStartY = 0;
 document.addEventListener('touchstart', e => touchStartY = e.touches[0].clientY);
 document.addEventListener('touchend', e => {
   if (window.scrollY === 0 && e.changedTouches[0].clientY - touchStartY > 100) {
-    if(syncCfg()){syncNowUI();alert('Atualizando dados...');}
+    if(syncCfg()||driveCfg()){syncNowUI();alert('Atualizando dados...');}
   }
 });
 </script>
