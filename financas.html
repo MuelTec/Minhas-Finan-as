@@ -91,6 +91,22 @@ input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--
 .pk{display:flex;gap:8px}
 .pk button{flex:1;aspect-ratio:1.586;border-radius:14px;border:3px solid transparent;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
 .pk button.on{border-color:var(--ac);box-shadow:0 0 15px var(--glowc)}
+/* --- Anotações / listas: tabela de prestação de contas (leia bem no print) --- */
+.tbl{width:100%;border-collapse:collapse;font-size:14.5px;font-variant-numeric:tabular-nums}
+.tbl th{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);text-align:left;font-weight:700;padding:0 10px 8px 0;border-bottom:2px solid var(--ln);white-space:nowrap}
+.tbl th.v,.tbl td.v{text-align:right;padding-right:0}
+.tbl td{padding:11px 10px 11px 0;border-bottom:1px solid var(--ln);vertical-align:top}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr{cursor:pointer}
+.tbl td.d{color:var(--mut);font-size:13px;white-space:nowrap}
+.tbl td .sub{display:block;color:var(--mut);font-size:12px;margin-top:2px}
+.tbl td.v{font-weight:650;white-space:nowrap}
+.tbl tfoot td{border-top:2px solid var(--ln);border-bottom:0;font-weight:800;padding-top:13px;font-size:16px}
+.tbl tfoot td.v{font-size:17px}
+.lsum{display:flex;gap:10px;margin-bottom:12px}
+.lsum div{flex:1;background:var(--tint);border:1px solid var(--ln);border-radius:16px;padding:11px 13px}
+.lsum small{display:block;font-size:12px;color:var(--mut)}
+.lsum b{font-size:18px;font-weight:700}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 /* --- Rosquinha minimalista: anel fino, pontas arredondadas, traço que se desenha --- */
 @keyframes dsegIn{from{stroke-dasharray:0 var(--c)}to{stroke-dasharray:var(--l) var(--c)}}
@@ -162,8 +178,9 @@ function applyTheme(){document.documentElement.dataset.theme=curTheme;try{localS
 function cycleTheme(){const i=THEMES.findIndex(x=>x[0]===curTheme);curTheme=THEMES[(i+1)%THEMES.length][0];applyTheme();render()}
 const themeLabel=()=>(THEMES.find(x=>x[0]===curTheme)||THEMES[0])[1];
 let S;try{S=JSON.parse(localStorage.getItem('fin1'))}catch(e){}
-S=S||{tx:[],buys:[],cards:[],ev:[],bud:{}};
+S=S||{tx:[],buys:[],cards:[],ev:[],bud:{},lists:[]};
 if(!S.bud||typeof S.bud!=='object')S.bud={};
+if(!Array.isArray(S.lists))S.lists=[];
 if(!S.cards){S.cards=S.card&&S.buys.length?[{id:1,brand:'neon',close:S.card.close,due:S.card.due}]:[];S.buys.forEach(b=>b.cid=1)}
 let lastBody=null;
 const save=()=>{try{
@@ -191,11 +208,12 @@ function exportBackup(){
 function applyBackup(d){
   if(!d||typeof d!=='object'||Array.isArray(d)||!Array.isArray(d.tx))
     return'Arquivo inválido: não parece um backup do Minhas Finanças.';
-  S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{}},d);
+  S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{},lists:[]},d);
   if(!Array.isArray(S.cards))S.cards=[];
   if(!Array.isArray(S.buys))S.buys=[];
   if(!Array.isArray(S.ev))S.ev=[];
   if(!S.bud||typeof S.bud!=='object')S.bud={};
+  if(!Array.isArray(S.lists))S.lists=[];
   save();render();
   return'';
 }
@@ -249,8 +267,9 @@ function applyRemote(p){
  if(S&&Array.isArray(S.tx)&&S.tx.length&&p&&p.data&&JSON.stringify(p.data)!==JSON.stringify(S))
   pushHist(JSON.parse(JSON.stringify(S)),S.upd);
  try{localStorage.setItem('fin_local_backup',JSON.stringify(S))}catch(e){}
- S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{}},p.data||{});
+ S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{},lists:[]},p.data||{});
  if(!S.bud||typeof S.bud!=='object')S.bud={};
+ if(!Array.isArray(S.lists))S.lists=[];
  S.upd=p.upd||0;
  try{localStorage.setItem('fin1',JSON.stringify(S))}catch(e){}
  const cur=S.upd;S.upd=0;lastBody=JSON.stringify(S);S.upd=cur;
@@ -856,11 +875,12 @@ async function restoreVer(i){
  if(!h||!h.data)return'A versão não está disponível mais.';
  if(!confirm('Restaurar a versão de '+new Date(h.t).toLocaleString('pt-BR')+'?\n\nOs dados atuais serão substituídos — e a versão atual fica guardada no histórico.'))return;
  pushHist(JSON.parse(JSON.stringify(S)),S.upd); // guarda o "antes" para poder voltar
- S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{}},h.data);
+ S=Object.assign({tx:[],buys:[],cards:[],ev:[],bud:{},lists:[]},h.data);
  if(!Array.isArray(S.cards))S.cards=[];
  if(!Array.isArray(S.buys))S.buys=[];
  if(!Array.isArray(S.ev))S.ev=[];
  if(!S.bud||typeof S.bud!=='object')S.bud={};
+ if(!Array.isArray(S.lists))S.lists=[];
  save();close();render();
  syncAll().catch(()=>{});
  alert('Versão restaurada ✅ — sincronizando com os outros aparelhos.');
@@ -1125,9 +1145,240 @@ function hist(){
  </div>
  ${ntHtml()}${driveSection()}${syncCfg()?syncHtml():`<details style="margin-top:12px"><summary class="mu" style="cursor:pointer">Outras formas: sincronizar com GitHub</summary>${syncHtml()}</details>`}`;
 }
+// ==================== ANOTAÇÕES / LISTAS — prestar contas de viagens e gastos à parte ====================
+let openLid=null; // lista aberta na aba Anotações
+const LCATS=['','Alimentação','Transporte','Hospedagem','Lazer','Compras','Saúde','Outros'];
+const listOf=id=>S.lists.find(x=>x.id==id);
+const listTotal=l=>(l&&Array.isArray(l.items)?l.items:[]).reduce((s,x)=>s+(+x.amt||0),0);
+const listSorted=l=>(l&&Array.isArray(l.items)?l.items:[]).slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))||(a.id||0)-(b.id||0));
+const ldate=(s,y)=>{const d=new Date(String(s||'')+'T12:00');return isNaN(d)?(s||''):fd(d,y)};
+const nItens=n=>n===1?'1 item':n+' itens';
+const fileSlug=s=>String(s||'lista').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'lista';
+
+function listTab(){
+ if(openLid){const l=listOf(openLid);if(l)return listDetail(l);openLid=null}
+ const ls=S.lists.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(b.id||0)-(a.id||0));
+ return `<h1>Anotações e listas</h1>
+ <button class="b p w" onclick="listSheet()">${ico('add-outline',18)} Nova lista</button>
+ <div class="mu" style="font-size:13px;margin:10px 0 14px">Organize gastos à parte: uma viagem, um evento, as compras de uma obra. Cada lista vira um arquivo Excel ou uma imagem da tabela pronta para mandar no zap/e-mail.</div>
+ <div class="cd">${ls.length?ls.map(l=>`<div class="r" onclick="openLid=${l.id};render();scrollTo(0,0)"><div class="t"><div>${esc(l.title||'Sem título')}</div><div class="mu">${nItens((l.items||[]).length)} · ${ldate(l.date,true)}</div></div><div class="v">${BRL.format(listTotal(l))}</div></div>`).join(''):'<div class="em">Nenhuma lista ainda. Toque em “Nova lista” para começar — ex.: “Viagem cliente São Paulo”.</div>'}</div>`;
+}
+
+function listDetail(l){
+ const it=listSorted(l),tot=listTotal(l);
+ return `<div class="mb"><button class="ib" aria-label="Voltar" onclick="openLid=null;render()">${ico('chevron-back',20)}</button><b>Anotações</b><button class="ib" aria-label="Editar lista" onclick="listSheet(${l.id})">${ico('create-outline',18)}</button></div>
+ <h1>${esc(l.title||'Sem título')}</h1>
+ <div class="mu" style="margin:-8px 0 14px">Criada em ${ldate(l.date,true)}</div>
+ <div class="lsum"><div><small>Itens</small><b>${it.length}</b></div><div><small>Total</small><b>${BRL.format(tot)}</b></div></div>
+ <div class="cd"><table class="tbl">
+  <thead><tr><th>Data</th><th>Descrição</th><th class="v">Valor</th></tr></thead>
+  <tbody>${it.length?it.map(x=>`<tr onclick="listItemSheet(${l.id},${x.id})"><td class="d">${ldate(x.date)}</td><td>${esc(x.name||'—')}${x.cat?`<span class="sub">${esc(x.cat)}</span>`:''}</td><td class="v">${BRL.format(+x.amt||0)}</td></tr>`).join(''):'<tr><td colspan="3" class="em">Nenhum item ainda. Toque em “Novo item” para lançar o primeiro gasto.</td></tr>'}</tbody>
+  ${it.length?`<tfoot><tr><td colspan="2">TOTAL</td><td class="v">${BRL.format(tot)}</td></tr></tfoot>`:''}
+ </table></div>
+ <button class="b p w" onclick="listItemSheet(${l.id})">${ico('add-outline',18)} Novo item</button>
+ <button class="b w" style="margin-top:8px" onclick="exportXlsx(${l.id})">${ico('cloud-download-outline',18)} Gerar arquivo Excel (.xlsx)</button>
+ <button class="b w" style="margin-top:8px" onclick="shareTableImg(${l.id})">${ico('clipboard-outline',18)} Gerar imagem da tabela (print)</button>
+ <div class="mu" style="font-size:12.5px;margin-top:10px">No celular os botões abrem a tela de compartilhar (WhatsApp, e-mail, Drive); no computador baixam o arquivo.</div>
+ <div style="margin-top:18px"><button class="b d" onclick="delList(${l.id})">${ico('trash-outline',16)} Excluir lista</button></div>`;
+}
+
+function listSheet(id){
+ const l=id?listOf(id):null;if(id&&!l)return;
+ const t=l||{title:'',date:today(),items:[]};
+ sheet(`${ico('create-outline',18)} ${id?'Editar':'Nova'} lista`,
+  F('Título',inp('f_t',t.title,'placeholder="Ex.: Viagem cliente São Paulo"'))+F('Data',inp('f_d',t.date,'type="date"'))+
+  '<div class="mu" style="font-size:12.5px">A data identifica a lista (ex.: o dia em que a viagem começou).</div>',
+  ()=>{const tt=v('f_t').trim();if(!tt)return'Dê um título à lista.';if(!v('f_d'))return'Escolha a data.';
+   const o={id:t.id||Date.now(),title:tt,date:v('f_d'),items:t.items||[]};
+   if(id)Object.assign(l,o);else{S.lists.push(o);openLid=o.id}},
+  id?()=>{S.lists=S.lists.filter(x=>x.id!=id);openLid=null}:null);
+}
+
+function listItemSheet(lid,iid){
+ const l=listOf(lid);if(!l)return;
+ const it=(l.items||[]).find(x=>x.id==iid)||{name:'',amt:'',date:today(),cat:''};
+ sheet(`${ico(iid?'create-outline':'add-outline',18)} ${iid?'Editar':'Novo'} item`,
+  F('Data',inp('f_d',it.date,'type="date"'))+F('Descrição (o que foi?)',inp('f_n',it.name,'placeholder="Ex.: Almoço na rodoviária"'))+
+  F('Categoria',sel('f_c',LCATS.map(c=>[c,c||'Sem categoria']),it.cat||''))+
+  F('Valor (R$)',inp('f_a',it.amt===''||it.amt==null?'':String(it.amt).replace('.',','),'inputmode="decimal" placeholder="0,00"')),
+  ()=>{const n=v('f_n').trim(),a=num(v('f_a'));
+   if(!n)return'Descreva o gasto.';if(!(a>=0))return'Informe o valor (use 0,00 se não tiver custo).';if(!v('f_d'))return'Escolha a data.';
+   const o={id:it.id||Date.now(),date:v('f_d'),name:n,cat:v('f_c'),amt:a};
+   if(iid)Object.assign(it,o);else{l.items=l.items||[];l.items.push(o)}},
+  iid?()=>{l.items=(l.items||[]).filter(x=>x.id!=iid)}:null);
+}
+
+function delList(id){
+ const l=listOf(id);if(!l)return;
+ if(confirm(`Excluir a lista “${l.title||'Sem título'}” (${nItens((l.items||[]).length)})?\n\nEssa ação não pode ser desfeita.`)){
+  S.lists=S.lists.filter(x=>x.id!=id);openLid=null;save();render()}
+}
+
+// --- Compartilhar (celular) ou baixar (computador) ---
+function dlBlob(blob,name){
+ const a=document.createElement('a'),u=URL.createObjectURL(blob);
+ a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(u),5000);
+}
+async function shareOrDownload(blob,name,title){
+ try{
+  const file=new File([blob],name,{type:blob.type||'application/octet-stream'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+   try{await navigator.share({files:[file],title});return}
+   catch(e){if(e&&e.name==='AbortError')return}
+  }
+ }catch(e){}
+ dlBlob(blob,name);
+}
+
+// ==================== Gerador de .xlsx SEM biblioteca ====================
+// Monta um ZIP com entradas não comprimidas (método 0) + CRC32 — é um .xlsx real,
+// igual ao que o Excel/LibreOffice/Google Planilhas geram, sem depender de internet.
+const CRC32T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC32T[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zipStore(files){
+ const enc=new TextEncoder(),parts=[],cent=[];let off=0;const d=new Date();
+ const tm=((d.getHours()<<11)|(d.getMinutes()<<5)|Math.floor(d.getSeconds()/2))&0xFFFF;
+ const dt=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+ for(const f of files){
+  const nb=enc.encode(f.n),data=typeof f.b==='string'?enc.encode(f.b):f.b,crc=crc32(data);
+  const lh=new Uint8Array(30+nb.length),lv=new DataView(lh.buffer);
+  lv.setUint32(0,0x04034b50,true);lv.setUint16(4,20,true);lv.setUint16(6,0x0800,true);lv.setUint16(8,0,true);
+  lv.setUint16(10,tm,true);lv.setUint16(12,dt,true);lv.setUint32(14,crc,true);
+  lv.setUint32(18,data.length,true);lv.setUint32(22,data.length,true);
+  lv.setUint16(26,nb.length,true);lv.setUint16(28,0,true);
+  lh.set(nb,30);parts.push(lh,data);
+  const ch=new Uint8Array(46+nb.length),cv=new DataView(ch.buffer);
+  cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);
+  cv.setUint16(10,0,true);cv.setUint16(12,tm,true);cv.setUint16(14,dt,true);cv.setUint32(16,crc,true);
+  cv.setUint32(20,data.length,true);cv.setUint32(24,data.length,true);cv.setUint16(28,nb.length,true);
+  cv.setUint16(30,0,true);cv.setUint16(32,0,true);cv.setUint16(34,0,true);cv.setUint16(36,0,true);
+  cv.setUint32(38,0,true);cv.setUint32(42,off,true);ch.set(nb,46);cent.push(ch);
+  off+=lh.length+data.length;
+ }
+ const cdOff=off,cdLen=cent.reduce((s,c)=>s+c.length,0),eo=new Uint8Array(22),ev=new DataView(eo.buffer);
+ ev.setUint32(0,0x06054b50,true);ev.setUint16(4,0,true);ev.setUint16(6,0,true);
+ ev.setUint16(8,files.length,true);ev.setUint16(10,files.length,true);
+ ev.setUint32(12,cdLen,true);ev.setUint32(16,cdOff,true);ev.setUint16(20,0,true);
+ return new Blob([...parts,...cent,eo],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+const XNS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const xesc=s=>String(s==null?'':s).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const xStr=(ref,txt,st)=>txt===''||txt==null?'':`<c r="${ref}"${st?' s="'+st+'"':''} t="inlineStr"><is><t xml:space="preserve">${xesc(txt)}</t></is></c>`;
+const xNum=(ref,n,st)=>`<c r="${ref}"${st?' s="'+st+'"':''}><v>${n}</v></c>`;
+const xRow=(r,cells)=>cells&&cells.length?`<row r="${r}">${cells.join('')}</row>`:`<row r="${r}"/>`;
+const sheetTitle=t=>{let s=String(t||'').replace(/[\\\/\?\*\[\]\:]/g,' ').replace(/[\x00-\x1F]/g,' ').replace(/\s+/g,' ').trim().replace(/^'+|'+$/g,'').slice(0,31).trim();
+ return !s||/^history$/i.test(s)?'Relatorio':s};
+const XL_STYLES=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${XNS}"><numFmts count="1"><numFmt numFmtId="164" formatCode="R$ #,##0.00"/></numFmts><fonts count="3"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF3B1E5C"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+
+function exportXlsx(lid){
+ const l=listOf(lid);if(!l)return;
+ const it=listSorted(l),tot=listTotal(l),rows=[];let r=0;
+ r=1;rows.push(xRow(r,[xStr('A'+r,l.title||'Lista de gastos',3)]));
+ r=2;rows.push(xRow(r,[xStr('A'+r,`Relatório de gastos · gerado em ${fd(new Date(),true)} · Minhas Finanças`)]));
+ r=4;rows.push(xRow(r,[xStr('A'+r,'Data',1),xStr('B'+r,'Categoria',1),xStr('C'+r,'Descrição',1),xStr('D'+r,'Valor (R$)',1)]));
+ r=5;
+ it.forEach(x=>{rows.push(xRow(r,[xStr('A'+r,ldate(x.date,true)),xStr('B'+r,x.cat||'Sem categoria'),xStr('C'+r,x.name||''),xNum('D'+r,(Math.round((+x.amt||0)*100)/100).toFixed(2),2)]));r++});
+ rows.push(xRow(r,[xStr('A'+r,'TOTAL',3),xStr('C'+r,nItens(it.length)),xNum('D'+r,(Math.round(tot*100)/100).toFixed(2),2)]));
+ const sn=xesc(sheetTitle(l.title));
+ const files=[
+  {n:'[Content_Types].xml',b:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+  {n:'_rels/.rels',b:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+  {n:'xl/workbook.xml',b:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${XNS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${sn}" sheetId="1" r:id="rId1"/></sheets></workbook>`},
+  {n:'xl/_rels/workbook.xml.rels',b:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+  {n:'xl/styles.xml',b:XL_STYLES},
+  {n:'xl/worksheets/sheet1.xml',b:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${XNS}"><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="46" customWidth="1"/><col min="4" max="4" width="16" customWidth="1"/></cols><sheetData>${rows.join('')}</sheetData></worksheet>`}
+ ];
+ shareOrDownload(zipStore(files),`Anotacoes_${fileSlug(l.title)}_${today()}.xlsx`,`Relatório: ${l.title||'lista'} — total ${BRL.format(tot)}`);
+}
+
+// ==================== Imagem da tabela (print pronto para mandar) ====================
+function shareTableImg(lid){
+ const l=listOf(lid);if(!l)return;
+ const it=listSorted(l),tot=listTotal(l);
+ if(!it.length){alert('Adicione ao menos um item antes de gerar a imagem.');return}
+ try{
+  const FAM='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const f=(w,s)=>`${w} ${s}px ${FAM}`;
+  const rows=it.map(x=>({d:ldate(x.date,true),n:x.name||'',c:x.cat||'',v:BRL.format(+x.amt||0)}));
+  const W=1080,PAD=64,X0=48,X1=W-48,XD=72,XV=W-72,XDS=252;
+  const m=document.createElement('canvas').getContext('2d');
+  const fit=(t,fs,max)=>{m.font=fs;t=String(t||'');if(m.measureText(t).width<=max)return t;let s=t;
+   while(s.length>1&&m.measureText(s+'…').width>max)s=s.slice(0,-1);return s+'…'};
+  const descFS=f(600,32),valFS=f(700,32);
+  const descMax=XV-300-XDS;
+  // layout
+  const rows2=rows.map(r=>({...r,n:fit(r.n,descFS,descMax),h:r.c?80:64}));
+  let y=16+44;
+  y+=66; y+=42; y+=34;
+  const headTop=y,headH=62; y+=headH+10;
+  const rowsTop=y; rows2.forEach(r=>y+=r.h); y+=20;
+  const footTop=y,footH=112; y+=footH+36;
+  const H=Math.round(y+34);
+  // canvas
+  const c=document.createElement('canvas'),x=c.getContext('2d'),sc=2;
+  c.width=W*sc;c.height=H*sc;x.scale(sc,sc);
+  x.fillStyle='#FFFFFF';x.fillRect(0,0,W,H);
+  const rr=(px,py,w,h,rr2)=>{px=Math.round(px);py=Math.round(py);x.beginPath();
+   if(x.roundRect)x.roundRect(px,py,w,h,rr2);else{x.moveTo(px+rr2,py);x.arcTo(px+w,py,px+w,py+h,rr2);x.arcTo(px+w,py+h,px,py+h,rr2);x.arcTo(px,py+h,px,py,rr2);x.arcTo(px,py,px+w,py,rr2);x.closePath()}};
+  const cut=(t,fs,max)=>{x.font=fs;return fit(t,fs,max)};
+  // faixa de topo
+  const g=x.createLinearGradient(0,0,W,0);g.addColorStop(0,'#F0247E');g.addColorStop(.62,'#FF7A2F');g.addColorStop(1,'#E39A00');
+  x.fillStyle=g;x.fillRect(0,0,W,16);
+  // título + subtítulo
+  let ty=16+44;
+  x.font=f(800,54);x.fillStyle='#221033';x.textAlign='left';x.textBaseline='alphabetic';
+  x.fillText(cut(l.title||'Lista de gastos',f(800,54),W-PAD*2),PAD,ty);
+  ty+=42;
+  x.font=f(400,28);x.fillStyle='#7C6B90';
+  x.fillText(`Relatório de gastos · ${nItens(it.length)} · gerado em ${fd(new Date(),true)}`,PAD,ty+30-6);
+  // cabeçalho da tabela
+  x.font=f(700,20);
+  rr(X0,headTop,X1-X0,headH,14);x.fillStyle='#F1EAF7';x.fill();
+  x.fillStyle='#7C6B90';
+  x.fillText('DATA',XD,headTop+headH/2+7);
+  x.fillText('DESCRIÇÃO',XDS,headTop+headH/2+7);
+  x.textAlign='right';x.fillText('VALOR (R$)',XV,headTop+headH/2+7);x.textAlign='left';
+  // linhas
+  let ry=rowsTop;
+  rows2.forEach((r,i)=>{
+   const cy=r.h===80;
+   x.textAlign='left';
+   x.font=f(500,26);x.fillStyle='#8A79A0';
+   x.fillText(r.d,XD,ry+(cy?38:40));
+   x.font=descFS;x.fillStyle='#221033';
+   x.fillText(r.n,XDS,ry+(cy?36:44));
+   if(cy){x.font=f(400,24);x.fillStyle='#9C8FB0';x.fillText(cut(r.c,f(400,24),descMax),XDS,ry+66)}
+   x.textAlign='right';x.font=valFS;x.fillStyle='#221033';
+   x.fillText(r.v,XV,ry+(cy?36:44));
+   x.textAlign='left';
+   x.fillStyle='#EFE8F6';x.fillRect(X0,ry+r.h-1,X1-X0,1);
+   ry+=r.h;
+  });
+  // rodapé com o total
+  rr(X0,footTop,X1-X0,footH,20);
+  const g2=x.createLinearGradient(X0,0,X1,0);g2.addColorStop(0,'#F0247E');g2.addColorStop(1,'#FF7A2F');
+  x.fillStyle=g2;x.fill();
+  x.fillStyle='rgba(255,255,255,.92)';x.font=f(700,30);
+  x.fillText('TOTAL',XD,footTop+66);
+  x.fillStyle='rgba(255,255,255,.8)';x.font=f(500,22);
+  x.fillText(nItens(it.length),XD,footTop+94);
+  x.textAlign='right';x.fillStyle='#FFFFFF';x.font=f(800,48);
+  x.fillText(BRL.format(tot),XV,footTop+74);x.textAlign='left';
+  // assinatura
+  x.font=f(500,24);x.fillStyle='#A293B5';x.textAlign='center';
+  x.fillText('Minhas Finanças',W/2,footTop+footH+34);
+  x.textAlign='left';
+  // compartilha (celular) ou baixa (computador) — síncrono, para não perder o clique
+  const url=c.toDataURL('image/png'),bin=atob(url.split(',')[1]),arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  shareOrDownload(new Blob([arr],{type:'image/png'}),`tabela_${fileSlug(l.title)}_${today()}.png`,`Tabela: ${l.title||'lista'} — total ${BRL.format(tot)}`);
+ }catch(e){alert('Não consegui gerar a imagem neste dispositivo: '+(e&&e.message||e))}
+}
+
 function render(){
- $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda}[tab]();
- $('#nav').innerHTML=[['home','Resumo','pie-chart-outline'],['hist','Histórico','time-outline'],['tx','Lançamentos','cash-outline'],['card','Cartão','card-outline'],['ag','Agenda','calendar-outline']].map(([k,t,ic])=>`<button class="${tab==k?'on':''}" onclick="tab='${k}';render();scrollTo(0,0)">${ico(ic,22)}<span class="lbl">${t}</span></button>`).join('');
+ $('#app').innerHTML={home,tx:txTab,hist,card:cardTab,ag:agenda,an:listTab}[tab]();
+ $('#nav').innerHTML=[['home','Resumo','pie-chart-outline'],['hist','Histórico','time-outline'],['tx','Lançamentos','cash-outline'],['an','Anotações','clipboard-outline'],['card','Cartão','card-outline'],['ag','Agenda','calendar-outline']].map(([k,t,ic])=>`<button class="${tab==k?'on':''}" onclick="tab='${k}';render();scrollTo(0,0)">${ico(ic,22)}<span class="lbl">${t}</span></button>`).join('');
 }
 applyTheme();render();
 // Captura automática: verifica notificações pendentes periodicamente
